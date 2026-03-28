@@ -8,7 +8,7 @@ Passive-first technical reconnaissance for domain posture, hosting-layer evidenc
 - Collects low-noise DNS, WHOIS, TLS, HTTP, and hosting-layer metadata
 - Flags missing security headers and lightweight configuration issues
 - Surfaces web stack clues such as `Server`, CDN/WAF hints, cache headers, TLS SANs, nameservers, and mail infrastructure
-- Produces a technical report organized into `page`, `headers`, `webstack`, `network`, `tls`, and `ownership` sections
+- Produces a technical report organized into `page`, `headers`, `webstack`, `hosting`, `javascript`, `network`, `tls`, and `ownership` sections
 - Produces a single JSON report that can be opened in a static GitHub Pages UI
 
 ## Why the architecture looks like this
@@ -82,6 +82,8 @@ http://localhost:4173
 
 Load the report JSON from `reports/`.
 
+The bundled sample report in [example-report.json](/Users/jameswright/dev/_mvp/scanner/samples/example-report.json) is generated from `sodexo.com`.
+
 ## Deploying to GitHub Pages
 
 This repo now includes a GitHub Actions workflow at [deploy-pages.yml](/Users/jameswright/dev/_mvp/scanner/.github/workflows/deploy-pages.yml) that publishes the static viewer automatically from `main`.
@@ -117,6 +119,8 @@ The MVP currently checks:
 - TLS handshake failures
 - hosting-layer hints from `Server`, `Via`, `X-Cache`, `CF-*`, and related headers
 - ownership fingerprinting from WHOIS registrar and registrant fields
+- JavaScript/runtime clues from script paths and common framework markers such as `Next.js`, `Nuxt`, and `webpack`
+- exposure clues from banner disclosure such as `Server` and `X-Powered-By`
 
 ## Limits and next steps
 
@@ -128,6 +132,8 @@ Without third-party data sources, related-domain discovery is necessarily conser
 - nameservers
 
 `WHOIS-linked domains` is currently marked as coming soon. True reverse-WHOIS expansion needs either a local comparison corpus or an external index; the current scanner only fingerprints ownership metadata from the single WHOIS record it can observe.
+
+`CVE correlation` is also marked as coming soon. The scanner now surfaces software and runtime banner evidence, but reliable CVE matching needs a maintained version-to-advisory knowledge base.
 
 Good next steps for the next iteration:
 

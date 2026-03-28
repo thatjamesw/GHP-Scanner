@@ -8,90 +8,103 @@
   </head>
   <body>
     <main class="shell">
-      <section class="hero">
-        <p class="eyebrow">Passive Recon Console</p>
-        <h1>Technical domain posture and hosting-layer reconnaissance.</h1>
-        <p class="lede">
-          Generate a local JSON artifact, then inspect DNS, WHOIS, TLS, HTTP headers, redirect behavior, and hosting signals in a static report viewer.
-          The emphasis is evidence and infrastructure detail, not black-box scoring.
-        </p>
-      </section>
-
-      <section class="panel controls">
-        <div>
-          <label for="reportFile">Open report JSON</label>
-          <input id="reportFile" type="file" accept="application/json">
+      <header class="hero">
+        <div class="hero-main">
+          <p class="eyebrow">Passive Recon Console</p>
+          <h1>Technical domain posture and hosting-layer reconnaissance.</h1>
+          <p class="lede">
+            Inspect DNS, WHOIS, TLS, HTTP headers, hosting clues, runtime signals, and exposure evidence in a dense static report.
+            The emphasis is operator-friendly evidence, not a glossy scorecard.
+          </p>
         </div>
-        <button id="loadSample" type="button">Load sample report</button>
-      </section>
+        <div class="hero-actions">
+          <label class="file-picker">
+            <span>Open report JSON</span>
+            <input id="reportFile" type="file" accept="application/json">
+          </label>
+          <button id="loadSample" type="button">Load `sodexo.com` sample</button>
+        </div>
+      </header>
 
-      <section id="emptyState" class="panel empty-state">
-        <h2>No report loaded</h2>
-        <p>Run <code>npm run scan -- your-domain.com</code> locally, then load the generated JSON artifact from <code>reports/</code>.</p>
+      <section id="emptyState" class="empty-state">
+        <p>No report loaded. Run <code>npm run scan -- your-domain.com</code> locally, then load the JSON artifact from <code>reports/</code>.</p>
       </section>
 
       <section id="reportView" class="report hidden">
-        <div class="grid summary-grid">
-          <article class="panel metric">
-            <p class="label">Target</p>
-            <h2 id="targetValue">-</h2>
-          </article>
-          <article class="panel metric">
-            <p class="label">Assessment</p>
-            <h2 id="scoreValue">-</h2>
-          </article>
-          <article class="panel metric">
-            <p class="label">Findings</p>
-            <h2 id="findingValue">-</h2>
-          </article>
-          <article class="panel metric">
-            <p class="label">WHOIS-linked</p>
-            <h2 id="relatedDomainValue">-</h2>
-          </article>
-        </div>
+        <section class="console-head">
+          <div class="summary-line">
+            <span class="summary-key">Target</span>
+            <span id="targetValue" class="summary-value">-</span>
+          </div>
+          <div class="summary-line">
+            <span class="summary-key">Assessment</span>
+            <span id="scoreValue" class="summary-value">-</span>
+          </div>
+          <div class="summary-line">
+            <span class="summary-key">Findings</span>
+            <span id="findingValue" class="summary-value">-</span>
+          </div>
+          <div class="summary-line">
+            <span class="summary-key">WHOIS-linked</span>
+            <span id="relatedDomainValue" class="summary-value">-</span>
+          </div>
+        </section>
 
-        <div class="grid">
-          <article class="panel">
-            <h3>Assessment Findings</h3>
+        <div class="report-grid">
+          <section class="module module-wide">
+            <h2>Assessment Findings</h2>
             <div id="findingsList" class="stack"></div>
-          </article>
-          <article class="panel">
-            <h3>Primary Page</h3>
-            <div id="pageList" class="stack"></div>
-          </article>
-        </div>
+          </section>
 
-        <div class="grid">
-          <article class="panel">
-            <h3>HTTP Security Headers</h3>
+          <section class="module">
+            <h2>Primary Page</h2>
+            <div id="pageList" class="rows"></div>
+          </section>
+
+          <section class="module">
+            <h2>HTTP Security Headers</h2>
             <div id="headerList" class="stack"></div>
-          </article>
-          <article class="panel">
-            <h3>Web Stack</h3>
-            <div id="webStackList" class="stack"></div>
-          </article>
-        </div>
+          </section>
 
-        <div class="grid">
-          <article class="panel">
-            <h3>Network and Mail</h3>
-            <div id="networkList" class="stack"></div>
-          </article>
-          <article class="panel">
-            <h3>TLS and Certificate</h3>
-            <div id="tlsList" class="stack"></div>
-          </article>
-        </div>
+          <section class="module">
+            <h2>Web Stack</h2>
+            <div id="webStackList" class="rows"></div>
+          </section>
 
-        <div class="grid">
-          <article class="panel">
-            <h3>Ownership</h3>
-            <div id="ownershipList" class="stack"></div>
-          </article>
-          <article class="panel">
-            <h3>WHOIS-linked Domains</h3>
+          <section class="module">
+            <h2>Hosting</h2>
+            <div id="hostingList" class="rows"></div>
+          </section>
+
+          <section class="module">
+            <h2>JavaScript / Runtime</h2>
+            <div id="javascriptList" class="rows"></div>
+          </section>
+
+          <section class="module">
+            <h2>Network and Mail</h2>
+            <div id="networkList" class="rows"></div>
+          </section>
+
+          <section class="module">
+            <h2>TLS and Certificate</h2>
+            <div id="tlsList" class="rows"></div>
+          </section>
+
+          <section class="module">
+            <h2>Ownership</h2>
+            <div id="ownershipList" class="rows"></div>
+          </section>
+
+          <section class="module">
+            <h2>Exposure Clues</h2>
+            <div id="exposureList" class="rows"></div>
+          </section>
+
+          <section class="module module-wide">
+            <h2>WHOIS-linked Domains</h2>
             <div id="whoisLinkedList" class="stack"></div>
-          </article>
+          </section>
         </div>
       </section>
     </main>

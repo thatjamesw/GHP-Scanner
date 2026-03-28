@@ -23,8 +23,13 @@ function renderReport(report) {
 
   text("#targetValue", report.target);
   paintAssessment(report.summary);
-  text("#findingValue", `${report.summary.findingCount} findings`);
-  text("#relatedDomainValue", report.relationships?.whoisLinkedDomains?.status === "coming-soon" ? "Coming soon" : String(report.summary.relatedDomains));
+  text("#findingValue", `${report.summary.findingCount} findings / ${report.summary.score}`);
+  text(
+    "#relatedDomainValue",
+    report.relationships?.whoisLinkedDomains?.status === "coming-soon"
+      ? "Coming soon"
+      : String(report.summary.relatedDomains)
+  );
 
   renderList(
     "#findingsList",
@@ -36,106 +41,115 @@ function renderReport(report) {
     })
   );
 
-  renderList(
-    "#pageList",
-    [
-      row("Apex domain", report.page?.apexDomain),
-      row("Effective URL", report.page?.effectiveUrl),
-      row("HTTP status", stringify(report.page?.httpStatus)),
-      row("Redirected", yesNo(report.page?.redirected)),
-      row("Page title", report.page?.title),
-      row("Primary IPs", listOrFallback(report.page?.primaryIPs)),
-      row("Server", report.page?.server),
-      row("TLS issuer", report.page?.tlsIssuer),
-      row("TLS protocol", report.page?.tlsProtocol)
-    ],
-    renderRow
-  );
+  renderRows("#pageList", [
+    row("Apex domain", report.page?.apexDomain),
+    row("Effective URL", report.page?.effectiveUrl),
+    row("HTTP status", report.page?.httpStatus),
+    row("Redirected", yesNo(report.page?.redirected)),
+    row("Page title", report.page?.title),
+    row("Primary IPs", listOrFallback(report.page?.primaryIPs)),
+    row("Server", report.page?.server),
+    row("TLS issuer", report.page?.tlsIssuer),
+    row("TLS protocol", report.page?.tlsProtocol)
+  ]);
 
   renderList(
     "#headerList",
     Object.entries(report.http.securityHeaders ?? {}).map(([key, value]) => ({
       title: key,
       body: value,
-      className: `status-${value === "present" ? "green" : "red"}`
+      className: `severity-${value === "present" ? "low" : "high"}`
     })),
     renderEntry
   );
 
-  renderList(
-    "#webStackList",
-    [
-      row("Server header", report.webstack?.serverHeader),
-      row("X-Powered-By", report.webstack?.poweredBy),
-      row("Via", report.webstack?.reverseProxy),
-      row("Cache layer", report.webstack?.cacheLayer),
-      row("Delivery hints", listOrFallback(report.webstack?.deliveryHints)),
-      row("Observed hosts", listOrFallback(report.webstack?.observedHosts)),
-      ...(report.webstack?.headerSignals ?? []).map((entry) => row(`Signal ${entry.key}`, entry.value))
-    ],
-    renderRow
-  );
+  renderRows("#webStackList", [
+    row("Server header", report.webstack?.serverHeader),
+    row("X-Powered-By", report.webstack?.poweredBy),
+    row("Via", report.webstack?.reverseProxy),
+    row("Cache layer", report.webstack?.cacheLayer),
+    row("Delivery hints", listOrFallback(report.webstack?.deliveryHints)),
+    row("Observed hosts", listOrFallback(report.webstack?.observedHosts)),
+    ...(report.webstack?.headerSignals ?? []).map((entry) => row(`Signal ${entry.key}`, entry.value))
+  ]);
 
-  renderList(
-    "#networkList",
-    [
-      row("IPv4", listOrFallback(report.dns.a)),
-      row("IPv6", listOrFallback(report.dns.aaaa)),
-      row("CNAME", listOrFallback(report.dns.cname)),
-      row("Nameservers", listOrFallback(report.lists?.nameservers)),
-      row("MX", listOrFallback(report.lists?.mailServers)),
-      row("SPF", report.dns.txt?.spf),
-      row("DMARC", report.dns.txt?.dmarc),
-      row("CAA", formatCaa(report.dns.caa))
-    ],
-    renderRow
-  );
+  renderRows("#hostingList", [
+    row("Provider hint", report.hosting?.providerHint),
+    row("Delivery hints", listOrFallback(report.hosting?.deliveryHints)),
+    row("Effective host", report.hosting?.effectiveHostname),
+    row("Edge headers", formatHeaderSignals(report.hosting?.edgeHeaders))
+  ]);
 
-  renderList(
-    "#tlsList",
-    [
-      row("Protocol", report.tls.protocol),
-      row("Cipher", report.tls.cipher?.name),
-      row("Subject CN", report.tls.subject?.CN),
-      row("Issuer CN", report.tls.issuer?.CN),
-      row("Valid from", report.tls.validFrom),
-      row("Valid to", report.tls.validTo),
-      row("Serial", report.tls.serialNumber),
-      row("SHA-256 fingerprint", report.tls.fingerprint256),
-      row("Certificate SANs", listOrFallback(report.lists?.certificateNames))
-    ],
-    renderRow
-  );
+  renderRows("#javascriptList", [
+    row("Client hints", listOrFallback(report.javascript?.clientHints)),
+    row("Script sources", listOrFallback(report.javascript?.scriptSources)),
+    row("Third-party hosts", listOrFallback(report.javascript?.thirdPartyHosts))
+  ]);
 
-  renderList(
-    "#ownershipList",
-    [
-      row("Registrar", report.ownership?.registrar),
-      row("Registrant org", report.ownership?.registrantOrganization),
-      row("Registrant email", report.ownership?.registrantEmail),
-      row("Registrant country", report.ownership?.registrantCountry),
-      row("Abuse email", report.ownership?.abuseEmail),
-      row("WHOIS fingerprint", listOrFallback(report.ownership?.fingerprint))
-    ],
-    renderRow
-  );
+  renderRows("#networkList", [
+    row("IPv4", listOrFallback(report.dns.a)),
+    row("IPv6", listOrFallback(report.dns.aaaa)),
+    row("CNAME", listOrFallback(report.dns.cname)),
+    row("Nameservers", listOrFallback(report.lists?.nameservers)),
+    row("MX", listOrFallback(report.lists?.mailServers)),
+    row("SPF", report.dns.txt?.spf),
+    row("DMARC", report.dns.txt?.dmarc),
+    row("CAA", formatCaa(report.dns.caa))
+  ]);
+
+  renderRows("#tlsList", [
+    row("Protocol", report.tls.protocol),
+    row("Cipher", report.tls.cipher?.name),
+    row("Subject CN", report.tls.subject?.CN),
+    row("Issuer CN", report.tls.issuer?.CN),
+    row("Valid from", report.tls.validFrom),
+    row("Valid to", report.tls.validTo),
+    row("Serial", report.tls.serialNumber),
+    row("SHA-256 fingerprint", report.tls.fingerprint256),
+    row("Certificate SANs", listOrFallback(report.lists?.certificateNames))
+  ]);
+
+  renderRows("#ownershipList", [
+    row("Registrar", report.ownership?.registrar),
+    row("Registrant org", report.ownership?.registrantOrganization),
+    row("Registrant email", report.ownership?.registrantEmail),
+    row("Registrant country", report.ownership?.registrantCountry),
+    row("Abuse email", report.ownership?.abuseEmail),
+    row("WHOIS fingerprint", listOrFallback(report.ownership?.fingerprint))
+  ]);
+
+  renderRows("#exposureList", [
+    row("Banner disclosures", formatBannerDisclosures(report.exposures?.bannerDisclosures)),
+    row("CVE correlation", report.exposures?.cveCorrelation?.status),
+    row("CVE note", report.exposures?.cveCorrelation?.rationale)
+  ]);
 
   renderList(
     "#whoisLinkedList",
     [{
       title: "WHOIS-linked domains",
       body: report.relationships?.whoisLinkedDomains?.rationale ?? "Coming soon.",
-      className: "status-amber"
+      className: "severity-medium"
     }],
     renderEntry
   );
 }
 
 function paintAssessment(summary) {
-  const value = `${summary.status.toUpperCase()} ${summary.score}`;
   const element = document.querySelector("#scoreValue");
-  element.textContent = value;
-  element.className = `metric-status status-${summary.status}`;
+  element.textContent = `${summary.status.toUpperCase()} ${summary.score}`;
+  element.className = `summary-value metric-status status-${summary.status}`;
+}
+
+function renderRows(selector, rows) {
+  const element = document.querySelector(selector);
+  const filtered = rows.filter((entry) => entry.value !== null && entry.value !== undefined);
+  if (!filtered.length) {
+    element.innerHTML = rowTemplate("No data", "No data available.");
+    return;
+  }
+
+  element.innerHTML = filtered.map((entry) => rowTemplate(entry.label, stringify(entry.value))).join("");
 }
 
 function renderList(selector, items, renderer) {
@@ -148,12 +162,12 @@ function renderList(selector, items, renderer) {
   element.innerHTML = items.map(renderer).join("");
 }
 
-function renderRow(entry) {
-  return renderEntry({ title: entry.label, body: entry.value });
-}
-
 function renderEntry(entry) {
   return itemTemplate(entry);
+}
+
+function rowTemplate(label, value) {
+  return `<div class="row"><div class="row-label">${escapeHtml(label)}</div><div class="row-value">${escapeHtml(value)}</div></div>`;
 }
 
 function itemTemplate({ title, body, className = "" }) {
@@ -161,7 +175,7 @@ function itemTemplate({ title, body, className = "" }) {
 }
 
 function row(label, value) {
-  return { label, value: stringify(value) };
+  return { label, value };
 }
 
 function stringify(value) {
@@ -184,9 +198,23 @@ function formatCaa(records) {
     return "None detected";
   }
 
-  return records
-    .map((record) => record.issue || record.issuewild || record.iodef || "present")
-    .join(", ");
+  return records.map((record) => record.issue || record.issuewild || record.iodef || "present").join(", ");
+}
+
+function formatHeaderSignals(entries) {
+  if (!entries?.length) {
+    return "None detected";
+  }
+
+  return entries.map((entry) => `${entry.key}=${entry.value}`).join("; ");
+}
+
+function formatBannerDisclosures(entries) {
+  if (!entries?.length) {
+    return "None detected";
+  }
+
+  return entries.map((entry) => `${entry.source}=${entry.value}`).join("; ");
 }
 
 function text(selector, value) {

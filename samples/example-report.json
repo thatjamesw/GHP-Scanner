@@ -1,71 +1,87 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-03-28T12:00:00.000Z",
-  "target": "your-domain.com",
+  "generatedAt": "2026-03-28T13:44:17.819Z",
+  "target": "sodexo.com",
   "summary": {
-    "score": 74,
+    "score": 80,
     "rating": "watch",
-    "topSeverity": "medium",
-    "status": "amber",
-    "findingCount": 4,
-    "ips": 2,
-    "webStackHosts": 4,
+    "topSeverity": "low",
+    "status": "green",
+    "findingCount": 5,
+    "ips": 1,
+    "webStackHosts": 20,
     "relatedDomains": 0
   },
   "findings": [
     {
-      "severity": "medium",
+      "severity": "low",
       "category": "security-header",
-      "title": "Missing content-security-policy",
-      "description": "The apex response did not include content-security-policy."
+      "title": "Missing x-frame-options",
+      "description": "The apex response did not include x-frame-options."
     },
     {
       "severity": "low",
       "category": "security-header",
-      "title": "Missing referrer-policy",
-      "description": "The apex response did not include referrer-policy."
-    },
-    {
-      "severity": "medium",
-      "category": "email-security",
-      "title": "Missing DMARC",
-      "description": "No DMARC TXT record was found for the apex domain."
+      "title": "Missing permissions-policy",
+      "description": "The apex response did not include permissions-policy."
     },
     {
       "severity": "low",
       "category": "certificate-governance",
       "title": "No CAA policy",
       "description": "No CAA records were found, so certificate issuance is not explicitly constrained by DNS."
+    },
+    {
+      "severity": "low",
+      "category": "technology-disclosure",
+      "title": "Client-side stack signals exposed",
+      "description": "Observed JavaScript/runtime indicators: next.js, webpack, google-tag-manager, banner:Next.js."
+    },
+    {
+      "severity": "low",
+      "category": "banner-disclosure",
+      "title": "Server/runtime banner disclosure",
+      "description": "Exposed banners: server=Vercel; x-powered-by=Next.js."
     }
   ],
   "safeguards": {
     "scanMode": "passive-first",
     "notes": [
       "No brute-force subdomain enumeration is performed.",
-      "HTTP collection is limited to the apex and common redirect target."
+      "HTTP collection is limited to the apex and common redirect target.",
+      "DNS and WHOIS lookups use local system/network resolvers only.",
+      "The scanner is intended for reconnaissance and posture review, not exploitation."
     ]
   },
   "dns": {
     "a": [
-      "104.21.12.34",
-      "172.67.56.78"
+      "64.239.109.1"
     ],
     "aaaa": [],
-    "cname": [
-      "edge.example.net"
-    ],
+    "cname": [],
     "mx": [
       {
-        "exchange": "aspmx.l.google.com",
-        "priority": 1
+        "exchange": "mxa-00009201.gslb.pphosted.com",
+        "priority": 10
+      },
+      {
+        "exchange": "mxb-00009201.gslb.pphosted.com",
+        "priority": 20
       }
     ],
     "ns": [
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
+      "udns2.cscdns.uk",
+      "udns1.cscdns.net"
     ],
     "txt": {
-      "spf": "v=spf1 include:_spf.google.com ~all"
+      "spf": "v=spf1 a:smtpgate.sodexo.com include:spf-00009201.pphosted.com include:spf.sodexo.com -all",
+      "verifications": [
+        "google-site-verification=JSijr8pJzaiE4A2oA_KjfMQyQevstwSGXKMxmr24VH4",
+        "google-site-verification=5RypLyak8k7zEJ1b_Dcda2EB2AdAf2Sp5eLpAgBeJQA",
+        "google-site-verification=1kTMtvEpxyqZPGNCB7JKKsKZNRrPWId1XKlQbvDskKw",
+        "google-site-verification=0FOVtW6yb48AvhIMGFlmTZaGnj7LMI55uiaq3mOrk6U"
+      ],
+      "dmarc": "v=DMARC1; p=reject; fo=1; rua=mailto:dmarc_rua@emaildefense.proofpoint.com; ruf=mailto:dmarc_ruf@emaildefense.proofpoint.com"
     },
     "caa": [],
     "availability": {
@@ -75,188 +91,353 @@
     }
   },
   "whois": {
-    "registrar": "Example Registrar, Inc.",
-    "registrantOrganization": "Example Holdings Ltd",
-    "registrantEmail": "hostmaster@your-domain.com",
-    "registrantCountry": "GB",
-    "abuseEmail": "abuse@example-registrar.com",
-    "nameServers": [
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
-    ],
-    "relatednessFingerprint": [
-      "Example Registrar, Inc.",
-      "Example Holdings Ltd",
-      "hostmaster@your-domain.com",
-      "abuse@example-registrar.com",
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
-    ]
+    "error": "Command failed: whois sodexo.com\n"
   },
   "tls": {
     "protocol": "TLSv1.3",
     "cipher": {
-      "name": "TLS_AES_256_GCM_SHA384"
+      "name": "TLS_AES_128_GCM_SHA256",
+      "standardName": "TLS_AES_128_GCM_SHA256",
+      "version": "TLSv1.3"
     },
     "subject": {
-      "CN": "your-domain.com"
+      "CN": "sodexo.com"
     },
     "issuer": {
-      "CN": "Example CA"
+      "C": "US",
+      "O": "Let's Encrypt",
+      "CN": "R12"
     },
-    "serialNumber": "01ABCD23",
-    "fingerprint256": "AA:BB:CC:DD:EE:FF",
-    "validFrom": "Jan 1 00:00:00 2026 GMT",
-    "validTo": "Apr 1 23:59:59 2026 GMT",
+    "serialNumber": "0697AB03E58B436CAE9AC7951BB5A7FF72F1",
+    "fingerprint256": "A4:3B:EF:B8:35:97:94:32:DE:1F:51:76:05:DD:D5:EB:E2:E5:7F:59:6E:63:4F:E2:0B:B9:8D:D6:76:9A:C3:20",
+    "validFrom": "Mar 20 11:44:42 2026 GMT",
+    "validTo": "Jun 18 11:44:41 2026 GMT",
     "subjectAltNames": [
-      "your-domain.com",
-      "www.your-domain.com",
-      "assets.your-domain.com"
+      "sodexo.com"
     ]
   },
   "http": {
     "checks": [
       {
-        "url": "https://your-domain.com",
+        "url": "https://sodexo.com",
         "status": 200,
         "ok": true,
-        "finalUrl": "https://your-domain.com",
+        "finalUrl": "https://www.sodexo.com/",
         "headers": {
-          "server": "cloudflare",
-          "strict-transport-security": "max-age=31536000",
-          "cf-cache-status": "DYNAMIC"
+          "access-control-allow-credentials": "true",
+          "access-control-allow-headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
+          "access-control-allow-methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
+          "access-control-allow-origin": "*",
+          "age": "181",
+          "cache-control": "public, max-age=0, must-revalidate",
+          "content-encoding": "br",
+          "content-security-policy": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'unsafe-inline' data: blob:; img-src * data: blob:; font-src * data:; connect-src *; media-src *; object-src *; frame-src *;",
+          "content-type": "text/html; charset=utf-8",
+          "date": "Thu, 26 Mar 2026 15:45:34 GMT",
+          "etag": "W/\"o261kvg1hk3yqk\"",
+          "permission-policy": "camera=(), microphone=(), geolocation=()",
+          "referrer-policy": "strict-origin-when-cross-origin",
+          "server": "Vercel",
+          "set-cookie": "sc_site=SodexoGlobal; Path=/; Secure; HttpOnly; SameSite=none",
+          "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+          "transfer-encoding": "chunked",
+          "x-content-type-options": "nosniff",
+          "x-matched-path": "/en/_site_SodexoGlobal",
+          "x-powered-by": "Next.js",
+          "x-sc-rewrite": "/_site_SodexoGlobal/",
+          "x-vercel-cache": "HIT",
+          "x-vercel-id": "arn1::iad1::xplw4-1774705458058-95d27fad7117"
+        }
+      },
+      {
+        "url": "http://sodexo.com",
+        "status": 200,
+        "ok": true,
+        "finalUrl": "https://www.sodexo.com/",
+        "headers": {
+          "access-control-allow-credentials": "true",
+          "access-control-allow-headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
+          "access-control-allow-methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
+          "access-control-allow-origin": "*",
+          "age": "182",
+          "cache-control": "public, max-age=0, must-revalidate",
+          "content-encoding": "br",
+          "content-security-policy": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'unsafe-inline' data: blob:; img-src * data: blob:; font-src * data:; connect-src *; media-src *; object-src *; frame-src *;",
+          "content-type": "text/html; charset=utf-8",
+          "date": "Thu, 26 Mar 2026 15:45:34 GMT",
+          "etag": "W/\"o261kvg1hk3yqk\"",
+          "permission-policy": "camera=(), microphone=(), geolocation=()",
+          "referrer-policy": "strict-origin-when-cross-origin",
+          "server": "Vercel",
+          "set-cookie": "sc_site=SodexoGlobal; Path=/; Secure; HttpOnly; SameSite=none",
+          "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+          "transfer-encoding": "chunked",
+          "x-content-type-options": "nosniff",
+          "x-matched-path": "/en/_site_SodexoGlobal",
+          "x-powered-by": "Next.js",
+          "x-sc-rewrite": "/_site_SodexoGlobal/",
+          "x-vercel-cache": "HIT",
+          "x-vercel-id": "arn1::iad1::4mwvg-1774705458457-8cca6bc8bf36"
         }
       }
     ],
     "status": 200,
     "ok": true,
-    "redirected": false,
-    "effectiveUrl": "https://your-domain.com",
-    "title": "Example",
+    "redirected": true,
+    "effectiveUrl": "https://www.sodexo.com/",
+    "title": "Sodexo Group – Food Services &amp; Facilities Management",
     "headers": {
-      "server": "cloudflare",
-      "strict-transport-security": "max-age=31536000",
-      "x-frame-options": "SAMEORIGIN",
-      "cf-cache-status": "DYNAMIC"
+      "access-control-allow-credentials": "true",
+      "access-control-allow-headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
+      "access-control-allow-methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
+      "access-control-allow-origin": "*",
+      "age": "181",
+      "cache-control": "public, max-age=0, must-revalidate",
+      "content-encoding": "br",
+      "content-security-policy": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'unsafe-inline' data: blob:; img-src * data: blob:; font-src * data:; connect-src *; media-src *; object-src *; frame-src *;",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Thu, 26 Mar 2026 15:45:34 GMT",
+      "etag": "W/\"o261kvg1hk3yqk\"",
+      "permission-policy": "camera=(), microphone=(), geolocation=()",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "server": "Vercel",
+      "set-cookie": "sc_site=SodexoGlobal; Path=/; Secure; HttpOnly; SameSite=none",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-matched-path": "/en/_site_SodexoGlobal",
+      "x-powered-by": "Next.js",
+      "x-sc-rewrite": "/_site_SodexoGlobal/",
+      "x-vercel-cache": "HIT",
+      "x-vercel-id": "arn1::iad1::xplw4-1774705458058-95d27fad7117"
     },
     "securityHeaders": {
       "strict-transport-security": "present",
-      "content-security-policy": "missing",
-      "x-frame-options": "present",
-      "x-content-type-options": "missing",
-      "referrer-policy": "missing",
+      "content-security-policy": "present",
+      "x-frame-options": "missing",
+      "x-content-type-options": "present",
+      "referrer-policy": "present",
       "permissions-policy": "missing"
     },
     "extractedHosts": [
-      "cdn.example.net",
-      "images.example-cdn.com"
+      "edge.sitecorecloud.io",
+      "www.sodexo.com",
+      "www.w3.org",
+      "br.sodexo.com",
+      "au.sodexo.com",
+      "at.sodexo.com",
+      "be.sodexo.com",
+      "fi.sodexo.com",
+      "fr.sodexo.com",
+      "de.sodexo.com",
+      "ie.sodexo.com",
+      "sodexo.co.il",
+      "it.sodexo.com",
+      "lu.sodexo.com",
+      "middleeast.sodexo.com",
+      "nl.sodexo.com",
+      "no.sodexo.com",
+      "pl.sodexo.com",
+      "es.sodexo.com",
+      "se.sodexo.com"
+    ],
+    "scripts": [
+      "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "/_next/static/chunks/webpack-1cbf8187c21d03b3.js",
+      "/_next/static/chunks/framework-e952fed463eb8e34.js",
+      "/_next/static/chunks/main-0c4693e54fd0893f.js",
+      "/_next/static/chunks/pages/_app-e0baf442567e7cb0.js",
+      "/_next/static/chunks/b293cd00-f5f0f325599c45ba.js",
+      "/_next/static/chunks/330-95e9e8ab2d033fab.js",
+      "/_next/static/chunks/263-0fafdc729a2bddfe.js",
+      "/_next/static/chunks/77-907a1e33f4785a20.js",
+      "/_next/static/chunks/pages/%5B%5B...path%5D%5D-54cb5ce32f0a8711.js",
+      "/_next/static/R_5jtFlBHCREK1Yfp41WR/_buildManifest.js",
+      "/_next/static/R_5jtFlBHCREK1Yfp41WR/_ssgManifest.js"
+    ],
+    "clientHints": [
+      "next.js",
+      "webpack",
+      "google-tag-manager",
+      "banner:Next.js"
     ],
     "availability": {
       "http": true
     },
     "hosting": {
-      "effectiveHostname": "your-domain.com",
+      "effectiveHostname": "www.sodexo.com",
       "headerSignals": [
         {
           "key": "server",
-          "value": "cloudflare"
+          "value": "Vercel"
         },
         {
-          "key": "cf-cache-status",
-          "value": "DYNAMIC"
+          "key": "x-powered-by",
+          "value": "Next.js"
         }
       ],
-      "indicators": [
-        "cloudflare"
-      ]
+      "indicators": [],
+      "provider": "Vercel"
     }
   },
   "page": {
-    "apexDomain": "your-domain.com",
-    "effectiveUrl": "https://your-domain.com",
+    "apexDomain": "sodexo.com",
+    "effectiveUrl": "https://www.sodexo.com/",
     "httpStatus": 200,
-    "title": "Example",
-    "redirected": false,
+    "title": "Sodexo Group – Food Services &amp; Facilities Management",
+    "redirected": true,
     "primaryIPs": [
-      "104.21.12.34",
-      "172.67.56.78"
+      "64.239.109.1"
     ],
-    "server": "cloudflare",
-    "tlsIssuer": "Example CA",
+    "server": "Vercel",
+    "tlsIssuer": "R12",
     "tlsProtocol": "TLSv1.3"
   },
   "lists": {
     "domains": [
-      "your-domain.com",
-      "example.net",
-      "example-cdn.com"
+      "sodexo.com",
+      "sitecorecloud.io",
+      "w3.org",
+      "sodexo.co.il"
     ],
     "hosts": [
-      "edge.example.net",
-      "www.your-domain.com",
-      "assets.your-domain.com",
-      "cdn.example.net"
+      "edge.sitecorecloud.io",
+      "www.sodexo.com",
+      "www.w3.org",
+      "br.sodexo.com",
+      "au.sodexo.com",
+      "at.sodexo.com",
+      "be.sodexo.com",
+      "fi.sodexo.com",
+      "fr.sodexo.com",
+      "de.sodexo.com",
+      "ie.sodexo.com",
+      "sodexo.co.il",
+      "it.sodexo.com",
+      "lu.sodexo.com",
+      "middleeast.sodexo.com",
+      "nl.sodexo.com",
+      "no.sodexo.com",
+      "pl.sodexo.com",
+      "es.sodexo.com",
+      "se.sodexo.com"
     ],
     "ips": [
-      "104.21.12.34",
-      "172.67.56.78"
+      "64.239.109.1"
     ],
     "nameservers": [
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
+      "udns2.cscdns.uk",
+      "udns1.cscdns.net"
     ],
     "mailServers": [
-      "aspmx.l.google.com"
+      "mxa-00009201.gslb.pphosted.com",
+      "mxb-00009201.gslb.pphosted.com"
     ],
     "certificateNames": [
-      "your-domain.com",
-      "www.your-domain.com",
-      "assets.your-domain.com"
+      "sodexo.com"
     ]
   },
   "webstack": {
-    "serverHeader": "cloudflare",
-    "poweredBy": null,
+    "serverHeader": "Vercel",
+    "poweredBy": "Next.js",
     "reverseProxy": null,
-    "cacheLayer": "DYNAMIC",
-    "deliveryHints": [
-      "cloudflare"
-    ],
+    "cacheLayer": null,
+    "deliveryHints": [],
     "headerSignals": [
       {
         "key": "server",
-        "value": "cloudflare"
+        "value": "Vercel"
       },
       {
-        "key": "cf-cache-status",
-        "value": "DYNAMIC"
+        "key": "x-powered-by",
+        "value": "Next.js"
       }
     ],
     "observedHosts": [
-      "edge.example.net",
-      "www.your-domain.com",
-      "assets.your-domain.com",
-      "cdn.example.net"
+      "edge.sitecorecloud.io",
+      "www.sodexo.com",
+      "www.w3.org",
+      "br.sodexo.com",
+      "au.sodexo.com",
+      "at.sodexo.com",
+      "be.sodexo.com",
+      "fi.sodexo.com",
+      "fr.sodexo.com",
+      "de.sodexo.com",
+      "ie.sodexo.com",
+      "sodexo.co.il",
+      "it.sodexo.com",
+      "lu.sodexo.com",
+      "middleeast.sodexo.com",
+      "nl.sodexo.com",
+      "no.sodexo.com",
+      "pl.sodexo.com",
+      "es.sodexo.com",
+      "se.sodexo.com"
     ]
   },
-  "ownership": {
-    "registrar": "Example Registrar, Inc.",
-    "registrantOrganization": "Example Holdings Ltd",
-    "registrantEmail": "hostmaster@your-domain.com",
-    "registrantCountry": "GB",
-    "abuseEmail": "abuse@example-registrar.com",
-    "nameServers": [
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
+  "javascript": {
+    "scriptSources": [
+      "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "/_next/static/chunks/webpack-1cbf8187c21d03b3.js",
+      "/_next/static/chunks/framework-e952fed463eb8e34.js",
+      "/_next/static/chunks/main-0c4693e54fd0893f.js",
+      "/_next/static/chunks/pages/_app-e0baf442567e7cb0.js",
+      "/_next/static/chunks/b293cd00-f5f0f325599c45ba.js",
+      "/_next/static/chunks/330-95e9e8ab2d033fab.js",
+      "/_next/static/chunks/263-0fafdc729a2bddfe.js",
+      "/_next/static/chunks/77-907a1e33f4785a20.js",
+      "/_next/static/chunks/pages/%5B%5B...path%5D%5D-54cb5ce32f0a8711.js",
+      "/_next/static/R_5jtFlBHCREK1Yfp41WR/_buildManifest.js",
+      "/_next/static/R_5jtFlBHCREK1Yfp41WR/_ssgManifest.js"
     ],
-    "fingerprint": [
-      "Example Registrar, Inc.",
-      "Example Holdings Ltd",
-      "hostmaster@your-domain.com",
-      "abuse@example-registrar.com",
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
+    "clientHints": [
+      "next.js",
+      "webpack",
+      "google-tag-manager",
+      "banner:Next.js"
+    ],
+    "thirdPartyHosts": [
+      "edge.sitecorecloud.io",
+      "www.w3.org",
+      "sodexo.co.il"
     ]
+  },
+  "hosting": {
+    "providerHint": "Vercel",
+    "deliveryHints": [],
+    "effectiveHostname": "www.sodexo.com",
+    "edgeHeaders": [
+      {
+        "key": "server",
+        "value": "Vercel"
+      }
+    ]
+  },
+  "exposures": {
+    "bannerDisclosures": [
+      {
+        "source": "server",
+        "value": "Vercel"
+      },
+      {
+        "source": "x-powered-by",
+        "value": "Next.js"
+      }
+    ],
+    "cveCorrelation": {
+      "status": "coming-soon",
+      "rationale": "Reliable CVE matching needs a maintained software-version knowledge base. The scanner currently surfaces version and banner evidence only."
+    }
+  },
+  "ownership": {
+    "registrar": null,
+    "registrantOrganization": null,
+    "registrantEmail": null,
+    "registrantCountry": null,
+    "abuseEmail": null,
+    "nameServers": [],
+    "fingerprint": []
   },
   "relationships": {
     "whoisLinkedDomains": {
@@ -267,26 +448,201 @@
   },
   "footprint": {
     "ips": [
-      "104.21.12.34",
-      "172.67.56.78"
+      "64.239.109.1"
     ],
     "nameservers": [
-      "ns1.example-dns.com",
-      "ns2.example-dns.com"
+      "udns2.cscdns.uk",
+      "udns1.cscdns.net"
     ],
     "mail": [
-      "aspmx.l.google.com"
+      "mxa-00009201.gslb.pphosted.com",
+      "mxb-00009201.gslb.pphosted.com"
     ],
     "webStackHosts": [
-      "edge.example.net",
-      "www.your-domain.com",
-      "assets.your-domain.com",
-      "cdn.example.net"
+      "edge.sitecorecloud.io",
+      "www.sodexo.com",
+      "www.w3.org",
+      "br.sodexo.com",
+      "au.sodexo.com",
+      "at.sodexo.com",
+      "be.sodexo.com",
+      "fi.sodexo.com",
+      "fr.sodexo.com",
+      "de.sodexo.com",
+      "ie.sodexo.com",
+      "sodexo.co.il",
+      "it.sodexo.com",
+      "lu.sodexo.com",
+      "middleeast.sodexo.com",
+      "nl.sodexo.com",
+      "no.sodexo.com",
+      "pl.sodexo.com",
+      "es.sodexo.com",
+      "se.sodexo.com"
     ],
     "relatedDomains": []
   },
   "raw": {
-    "dns": {},
-    "whois": "Example raw whois output"
+    "dns": {
+      "A": [
+        "64.239.109.1"
+      ],
+      "AAAA": {
+        "error": "queryAaaa ENODATA sodexo.com"
+      },
+      "CNAME": {
+        "error": "queryCname ENODATA sodexo.com"
+      },
+      "MX": [
+        {
+          "exchange": "mxa-00009201.gslb.pphosted.com",
+          "priority": 10,
+          "type": "MX"
+        },
+        {
+          "exchange": "mxb-00009201.gslb.pphosted.com",
+          "priority": 20,
+          "type": "MX"
+        }
+      ],
+      "NS": [
+        "udns2.cscdns.uk",
+        "udns1.cscdns.net"
+      ],
+      "TXT": [
+        [
+          "atlassian-domain-verification=RTBIoY9v1hEyXeBsklAaIzYhpGNhQYBltxVaUVf0JATQ4lKPfPbLO05uft1CO6Y4"
+        ],
+        [
+          "atlassian-domain-verification=3idnPToVP7rGPxCTI1z05REJP/vOP2HxMJhEYocvj6APp1n7rn2CN9KQFm7wKFBj"
+        ],
+        [
+          "adobe-idp-site-verification=c0a8c9e6379c63fc7e95c346468c7e4438603f6521891b9381407d567cb6823d"
+        ],
+        [
+          "access-domain-verification=65b1191db9cca0ab2cf6308770c10caa13048d3e1254865b473045fe31538099"
+        ],
+        [
+          "v=spf1 a:smtpgate.sodexo.com include:spf-00009201.pphosted.com include:spf.sodexo.com -all"
+        ],
+        [
+          "QyTLB54NgGyJvM8jefOLtS9qNVCUdJfBUsPrvDoAZoCjM3+z1ZzIYQbflPSDa7fvGFlc6osRYcrasfLRkFSObQ=="
+        ],
+        [
+          "/ZlYYlMDIlgVz/7P0yEfohPlCHVydSTb7Vo7dBbFw58nUE2r++c+Sjsw6Nntde+9d9f1Jc15NHsGNEi7o8moNA=="
+        ],
+        [
+          "pardot789523=f354cf49a89446c5c2861eba8c91dae892afbf32e1b5458b45a4d73f13a2227e"
+        ],
+        [
+          "pardot786623=a1077916ce6fce115acc5e2230d6c0762bc9469f63d276bcf7a59ccbbee58899"
+        ],
+        [
+          "_globalsign-domain-verification=v944cuHTxw2aP4wyr4NmYgG-FD2LU090_2e9ZV4sBh"
+        ],
+        [
+          "_globalsign-domain-verification=TEslDjVK3eyvcluf44P6zCrEIvWO1Bd8uhJtXNCZFd"
+        ],
+        [
+          "_globalsign-domain-verification=6udFke2izwJGu05097QUK0At3vtmQ_OvgzwYH3r2Z5"
+        ],
+        [
+          "globalsign-domain-verification=d5SZ77hFmfvmvxKXxzLtPmaacCrmDbAmoap8lHnXSR"
+        ],
+        [
+          "notion-domain-verification=mTgsEOBuiY3xTuYHda27cE5I4Wt0f4YjWf0yxsLkioD"
+        ],
+        [
+          "google-site-verification=JSijr8pJzaiE4A2oA_KjfMQyQevstwSGXKMxmr24VH4"
+        ],
+        [
+          "google-site-verification=5RypLyak8k7zEJ1b_Dcda2EB2AdAf2Sp5eLpAgBeJQA"
+        ],
+        [
+          "google-site-verification=1kTMtvEpxyqZPGNCB7JKKsKZNRrPWId1XKlQbvDskKw"
+        ],
+        [
+          "google-site-verification=0FOVtW6yb48AvhIMGFlmTZaGnj7LMI55uiaq3mOrk6U"
+        ],
+        [
+          "play-play-domain-verification-w5xx4t=md9DWf78FUpxaUg7V7zXe0BHh"
+        ],
+        [
+          "sitecore-domain-verification=2f73f7f6cae14e19a793effe506c18df"
+        ],
+        [
+          "teamviewer-sso-verification=e0d9edb4a79e464cac866041bdaa63eb"
+        ],
+        [
+          "openai-domain-verification=dv-6gSkOUAdV5CZinylWkNvIEdu"
+        ],
+        [
+          "google-gws-recovery-domain-verification=[36797888]"
+        ],
+        [
+          "autodesk-domain-verification=_LQMcfFB2avP-KBJwOQ2"
+        ],
+        [
+          "docusign=13d77c1e-8078-4951-a936-accdb46362e8"
+        ],
+        [
+          "NKCXcQFtA0RfuU9bH12ZpxX3jCpw+aDf+PjQnBDjb1Q="
+        ],
+        [
+          "9aSMeVoIckTroAWoPATNoPii6bjdBC3wLcycv27636g="
+        ],
+        [
+          "7OCi8pHTiroOYbKYBEyYJ16Hq8yR1kjQo+gQU1pqEcg="
+        ],
+        [
+          "hgAGcTqi=4e0e5968f86e2337f44b45302980a3dc"
+        ],
+        [
+          "8697fec6-6061-45b8-a769-5fbaeb6eb315"
+        ],
+        [
+          "13455ed9-4719-4f7d-9788-9380e5f5697b"
+        ],
+        [
+          "__ug9wxlnk1irz3nvxp1a0mqrcr4br8h9"
+        ],
+        [
+          "xjmc07g0xqqzj7t069dz9jkpcg0vbsqp"
+        ],
+        [
+          "_trp185ii9t9wnchajvlt6blcs4uiw87"
+        ],
+        [
+          "_t5qq4aqmbaii63n66xyqoyofscvzuwc"
+        ],
+        [
+          "_30r5ta9ujrekcsnejd084eg7hyy4bb4"
+        ],
+        [
+          "mqbRmIISgDgVS3tDAo2EI0l9lr0= "
+        ],
+        [
+          "ZYKInhvEG3U/ztgJrAgHy/sj1hQ="
+        ],
+        [
+          "BiR0tegFDGbFlUycHOsWz2rt1FQ="
+        ],
+        [
+          "MS=ms53460658"
+        ],
+        [
+          "MS=ms43823393"
+        ]
+      ],
+      "CAA": {
+        "error": "queryCaa ENODATA sodexo.com"
+      },
+      "DMARC": [
+        [
+          "v=DMARC1; p=reject; fo=1; rua=mailto:dmarc_rua@emaildefense.proofpoint.com; ruf=mailto:dmarc_ruf@emaildefense.proofpoint.com"
+        ]
+      ]
+    },
+    "whois": ""
   }
 }

@@ -44,6 +44,11 @@ async function main() {
     page: {},
     lists: {},
     webstack: {},
+    javascript: {},
+    hosting: {},
+    posture: {},
+    discovery: {},
+    exposures: {},
     ownership: {},
     relationships: {},
     footprint: {
@@ -74,6 +79,11 @@ async function main() {
   report.page = buildPageView(report);
   report.lists = buildListsView(report);
   report.webstack = buildWebstackView(report);
+  report.javascript = buildJavaScriptView(report);
+  report.hosting = buildHostingView(report);
+  report.posture = buildPostureView(report);
+  report.discovery = buildDiscoveryView(report);
+  report.exposures = buildExposureView(report);
   report.ownership = buildOwnershipView(report);
   report.relationships = buildRelationshipsView();
   report.findings = buildFindings(report);
@@ -368,6 +378,10 @@ async function collectHttp(domain) {
     http: results.some((item) => item.finalUrl)
   };
   const hosting = summarizeHosting(preferred.headers ?? {}, preferred.finalUrl ?? null);
+  const cookiePosture = summarizeCookiePosture(preferred.cookies ?? []);
+  const cors = summarizeCors(preferred.headers ?? {});
+  const csp = analyzeCsp(preferred.headers?.["content-security-policy"] ?? null);
+  const discovery = preferred.finalUrl ? await discoverWellKnown(preferred.finalUrl) : {};
 
   return {
     cleaned: {
@@ -380,6 +394,14 @@ async function collectHttp(domain) {
       headers: preferred.headers ?? {},
       securityHeaders,
       extractedHosts,
+      scripts: extractScripts(preferred.body ?? ""),
+      clientHints: extractClientHints(preferred.body ?? "", preferred.headers ?? {}),
+      cookies: preferred.cookies ?? [],
+      cookiePosture,
+      cors,
+      csp,
+      redirectChain: preferred.redirectChain ?? [],
+      discovery,
       availability,
       hosting
     }
@@ -387,31 +409,53 @@ async function collectHttp(domain) {
 }
 
 async function fetchUrl(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const redirectChain = [];
+  let currentUrl = url;
 
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      headers: { "user-agent": USER_AGENT },
-      signal: controller.signal
-    });
+  for (let i = 0; i < 5; i += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const headers = Object.fromEntries(response.headers.entries());
-    const body = await response.text();
+    try {
+      const response = await fetch(currentUrl, {
+        method: "GET",
+        redirect: "manual",
+        headers: { "user-agent": USER_AGENT },
+        signal: controller.signal
+      });
+      const headers = Object.fromEntries(response.headers.entries());
+      const status = response.status;
+      const location = response.headers.get("location");
+      const cookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
 
-    return {
-      url,
-      status: response.status,
-      ok: response.ok,
-      finalUrl: response.url,
-      headers,
-      body
-    };
-  } finally {
-    clearTimeout(timeout);
+      redirectChain.push({
+        url: currentUrl,
+        status,
+        location: location ?? null
+      });
+
+      if (status >= 300 && status < 400 && location) {
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+
+      const body = await response.text();
+      return {
+        url,
+        status: response.status,
+        ok: response.ok,
+        finalUrl: currentUrl,
+        headers,
+        cookies: parseSetCookies(cookies),
+        body,
+        redirectChain
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  throw new Error("Too many redirects");
 }
 
 function summarizeSecurityHeaders(headers) {
@@ -433,6 +477,165 @@ function summarizeSecurityHeaders(headers) {
   return desired;
 }
 
+function parseSetCookies(setCookies) {
+  return setCookies.map((value) => {
+    const parts = value.split(";").map((part) => part.trim());
+    const [nameValue, ...attributes] = parts;
+    const [name] = nameValue.split("=");
+    const parsed = {
+      name,
+      secure: false,
+      httpOnly: false,
+      sameSite: null,
+      domain: null,
+      path: null
+    };
+
+    for (const attribute of attributes) {
+      const [key, raw] = attribute.split("=");
+      const lower = key.toLowerCase();
+      if (lower === "secure") {
+        parsed.secure = true;
+      } else if (lower === "httponly") {
+        parsed.httpOnly = true;
+      } else if (lower === "samesite") {
+        parsed.sameSite = raw ?? null;
+      } else if (lower === "domain") {
+        parsed.domain = raw ?? null;
+      } else if (lower === "path") {
+        parsed.path = raw ?? null;
+      }
+    }
+
+    return parsed;
+  });
+}
+
+function summarizeCookiePosture(cookies) {
+  const summary = {
+    total: cookies.length,
+    missingSecure: 0,
+    missingHttpOnly: 0,
+    missingSameSite: 0,
+    broadDomain: 0
+  };
+
+  for (const cookie of cookies) {
+    if (!cookie.secure) {
+      summary.missingSecure += 1;
+    }
+    if (!cookie.httpOnly) {
+      summary.missingHttpOnly += 1;
+    }
+    if (!cookie.sameSite) {
+      summary.missingSameSite += 1;
+    }
+    if (cookie.domain?.startsWith(".")) {
+      summary.broadDomain += 1;
+    }
+  }
+
+  return summary;
+}
+
+function summarizeCors(headers) {
+  const origin = headers["access-control-allow-origin"] ?? null;
+  const credentials = headers["access-control-allow-credentials"] ?? null;
+  const methods = headers["access-control-allow-methods"] ?? null;
+  const flags = [];
+
+  if (origin === "*" && credentials === "true") {
+    flags.push("wildcard-origin-with-credentials");
+  }
+  if (origin === "*") {
+    flags.push("wildcard-origin");
+  }
+  if (methods && /delete|put|patch/i.test(methods)) {
+    flags.push("broad-methods");
+  }
+
+  return {
+    origin,
+    credentials,
+    methods,
+    flags
+  };
+}
+
+function analyzeCsp(csp) {
+  if (!csp) {
+    return {
+      present: false,
+      grade: "missing",
+      flags: []
+    };
+  }
+
+  const flags = [];
+  const lower = csp.toLowerCase();
+  if (lower.includes("'unsafe-inline'")) {
+    flags.push("unsafe-inline");
+  }
+  if (lower.includes("'unsafe-eval'")) {
+    flags.push("unsafe-eval");
+  }
+  if (/default-src\s+\*/.test(lower) || /script-src\s+\*/.test(lower)) {
+    flags.push("wildcard-source");
+  }
+  if (/frame-src\s+\*/.test(lower) || /connect-src\s+\*/.test(lower)) {
+    flags.push("broad-directive");
+  }
+
+  const grade = flags.length >= 3 ? "weak" : flags.length > 0 ? "mixed" : "strong";
+  return {
+    present: true,
+    grade,
+    flags
+  };
+}
+
+async function discoverWellKnown(effectiveUrl) {
+  const base = new URL(effectiveUrl);
+  const paths = [
+    "/.well-known/security.txt",
+    "/security.txt",
+    "/robots.txt",
+    "/sitemap.xml"
+  ];
+  const results = {};
+
+  for (const pathname of paths) {
+    try {
+      const target = new URL(pathname, base).toString();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const response = await fetch(target, {
+          method: "GET",
+          redirect: "follow",
+          headers: { "user-agent": USER_AGENT },
+          signal: controller.signal
+        });
+        const text = await response.text();
+        results[pathname] = {
+          status: response.status,
+          ok: response.ok,
+          finalUrl: response.url,
+          preview: text.slice(0, 200).replace(/\s+/g, " ").trim()
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (error) {
+      results[pathname] = {
+        error: error.message
+      };
+    }
+  }
+
+  return results;
+}
+
 function extractTitle(html) {
   const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
   return match ? match[1].trim() : null;
@@ -445,6 +648,42 @@ function extractHostsFromBody(domain, html) {
     .slice(0, MAX_DISCOVERED_HOSTS);
 
   return related;
+}
+
+function extractScripts(html) {
+  const matches = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)]
+    .map((match) => match[1].trim())
+    .slice(0, MAX_DISCOVERED_HOSTS);
+
+  return [...new Set(matches)];
+}
+
+function extractClientHints(html, headers) {
+  const hints = [];
+  const body = html.toLowerCase();
+
+  const checks = [
+    ["next.js", body.includes("__next_data__") || body.includes("/_next/")],
+    ["nuxt", body.includes("__nuxt__") || body.includes("/_nuxt/")],
+    ["gatsby", body.includes("___gatsby")],
+    ["webpack", body.includes("webpack")],
+    ["google-tag-manager", body.includes("googletagmanager")],
+    ["google-analytics", body.includes("google-analytics") || body.includes("gtag(")],
+    ["adobe-launch", body.includes("assets.adobedtm.com")],
+    ["cloudflare-turnstile", body.includes("challenges.cloudflare.com")]
+  ];
+
+  for (const [label, matched] of checks) {
+    if (matched) {
+      hints.push(label);
+    }
+  }
+
+  if (headers["x-powered-by"]) {
+    hints.push(`banner:${headers["x-powered-by"]}`);
+  }
+
+  return [...new Set(hints)];
 }
 
 function summarizeHosting(headers, effectiveUrl) {
@@ -479,8 +718,32 @@ function summarizeHosting(headers, effectiveUrl) {
   return {
     effectiveHostname: effectiveUrl ? new URL(effectiveUrl).hostname : null,
     headerSignals: signals.map(([key, value]) => ({ key, value })),
-    indicators: [...new Set(indicators)]
+    indicators: [...new Set(indicators)],
+    provider: inferHostingProvider(headers)
   };
+}
+
+function inferHostingProvider(headers) {
+  const headerBlob = JSON.stringify(headers).toLowerCase();
+  if (headerBlob.includes("vercel") || headers["x-vercel-id"] || headers["x-vercel-cache"]) {
+    return "Vercel";
+  }
+  if (headerBlob.includes("sitecore") || headers["x-sc-rewrite"] || headers["x-matched-path"]) {
+    return "Sitecore";
+  }
+  if (headerBlob.includes("cloudflare") || headers["cf-ray"] || headers["cf-cache-status"]) {
+    return "Cloudflare";
+  }
+  if (headerBlob.includes("fastly") || headers["x-served-by"]) {
+    return "Fastly";
+  }
+  if (headerBlob.includes("akamai")) {
+    return "Akamai";
+  }
+  if (headers["x-amz-cf-pop"] || headers["x-amz-cf-id"]) {
+    return "Amazon CloudFront";
+  }
+  return null;
 }
 
 function buildFootprint(domain, dnsInfo, tlsInfo, httpInfo, whoisInfo) {
@@ -511,6 +774,23 @@ function registrableGuess(hostname) {
   const parts = hostname.split(".").filter(Boolean);
   if (parts.length < 2) {
     return null;
+  }
+
+  const compoundSuffixes = new Set([
+    "co.uk",
+    "org.uk",
+    "ac.uk",
+    "gov.uk",
+    "co.il",
+    "com.au",
+    "com.br",
+    "com.mx",
+    "co.jp",
+    "com.sg"
+  ]);
+  const suffix = parts.slice(-2).join(".");
+  if (parts.length >= 3 && compoundSuffixes.has(suffix)) {
+    return parts.slice(-3).join(".");
   }
 
   return parts.slice(-2).join(".");
@@ -599,6 +879,84 @@ function buildFindings(report) {
     });
   }
 
+  if ((report.javascript.clientHints ?? []).length > 0) {
+    findings.push({
+      severity: "low",
+      category: "technology-disclosure",
+      title: "Client-side stack signals exposed",
+      description: `Observed JavaScript/runtime indicators: ${report.javascript.clientHints.join(", ")}.`
+    });
+  }
+
+  if (report.exposures.bannerDisclosures.length > 0) {
+    findings.push({
+      severity: "low",
+      category: "banner-disclosure",
+      title: "Server/runtime banner disclosure",
+      description: `Exposed banners: ${report.exposures.bannerDisclosures.map((item) => `${item.source}=${item.value}`).join("; ")}.`
+    });
+  }
+
+  if (report.http.cookiePosture?.missingHttpOnly > 0) {
+    findings.push({
+      severity: "medium",
+      category: "cookie-posture",
+      title: "Cookies missing HttpOnly",
+      description: `${report.http.cookiePosture.missingHttpOnly} observed cookies do not declare HttpOnly.`
+    });
+  }
+
+  if (report.http.cookiePosture?.missingSecure > 0) {
+    findings.push({
+      severity: "medium",
+      category: "cookie-posture",
+      title: "Cookies missing Secure",
+      description: `${report.http.cookiePosture.missingSecure} observed cookies do not declare Secure.`
+    });
+  }
+
+  if ((report.http.cors?.flags ?? []).includes("wildcard-origin-with-credentials")) {
+    findings.push({
+      severity: "high",
+      category: "cors",
+      title: "CORS wildcard with credentials",
+      description: "The response advertises Access-Control-Allow-Origin: * together with credential support."
+    });
+  } else if ((report.http.cors?.flags ?? []).includes("wildcard-origin")) {
+    findings.push({
+      severity: "low",
+      category: "cors",
+      title: "Wildcard CORS origin",
+      description: "The response advertises Access-Control-Allow-Origin: *."
+    });
+  }
+
+  if (report.http.csp?.grade === "weak") {
+    findings.push({
+      severity: "medium",
+      category: "csp",
+      title: "Weak CSP quality",
+      description: `The CSP is present but permissive: ${report.http.csp.flags.join(", ")}.`
+    });
+  } else if (report.http.csp?.grade === "mixed") {
+    findings.push({
+      severity: "low",
+      category: "csp",
+      title: "CSP contains permissive directives",
+      description: `The CSP includes: ${report.http.csp.flags.join(", ")}.`
+    });
+  }
+
+  const securityTxt = report.discovery?.securityTxt;
+  if (securityTxt && !securityTxt.ok) {
+    findings.push({
+      severity: "low",
+      category: "security-contact",
+      title: "security.txt not discovered",
+      description: "No reachable security.txt file was observed at standard locations."
+    });
+  }
+
   return findings;
 }
 
@@ -635,7 +993,8 @@ function buildPageView(report) {
     primaryIPs: report.footprint.ips,
     server: report.http.headers?.server ?? null,
     tlsIssuer: report.tls.issuer?.CN ?? null,
-    tlsProtocol: report.tls.protocol ?? null
+    tlsProtocol: report.tls.protocol ?? null,
+    redirectChain: report.http.redirectChain ?? []
   };
 }
 
@@ -663,6 +1022,70 @@ function buildWebstackView(report) {
     deliveryHints: report.http.hosting?.indicators ?? [],
     headerSignals: report.http.hosting?.headerSignals ?? [],
     observedHosts: report.footprint.webStackHosts
+  };
+}
+
+function buildJavaScriptView(report) {
+  return {
+    scriptSources: report.http.scripts ?? [],
+    clientHints: report.http.clientHints ?? [],
+    thirdPartyHosts: (report.http.extractedHosts ?? []).filter((host) => !host.endsWith(report.target))
+  };
+}
+
+function buildHostingView(report) {
+  return {
+    providerHint: report.http.hosting?.provider ?? null,
+    deliveryHints: report.http.hosting?.indicators ?? [],
+    effectiveHostname: report.http.hosting?.effectiveHostname ?? null,
+    edgeHeaders: (report.http.hosting?.headerSignals ?? []).filter((entry) =>
+      ["via", "x-cache", "x-served-by", "cf-cache-status", "cf-ray", "x-amz-cf-pop", "server"].includes(entry.key)
+    )
+  };
+}
+
+function buildExposureView(report) {
+  const bannerDisclosures = [];
+  for (const [source, value] of [
+    ["server", report.http.headers?.server],
+    ["x-powered-by", report.http.headers?.["x-powered-by"]],
+    ["via", report.http.headers?.via]
+  ]) {
+    if (value) {
+      bannerDisclosures.push({ source, value });
+    }
+  }
+
+  return {
+    bannerDisclosures,
+    cookiePosture: report.http.cookiePosture ?? {},
+    cors: report.http.cors ?? {},
+    csp: report.http.csp ?? {},
+    cveCorrelation: {
+      status: "coming-soon",
+      rationale: "Reliable CVE matching needs a maintained software-version knowledge base. The scanner currently surfaces version and banner evidence only."
+    }
+  };
+}
+
+function buildPostureView(report) {
+  return {
+    cookiePosture: report.http.cookiePosture ?? {},
+    cors: report.http.cors ?? {},
+    csp: report.http.csp ?? {},
+    securityHeaders: report.http.securityHeaders ?? {}
+  };
+}
+
+function buildDiscoveryView(report) {
+  const securityTxt = report.http.discovery?.["/.well-known/security.txt"]?.ok
+    ? report.http.discovery["/.well-known/security.txt"]
+    : report.http.discovery?.["/security.txt"] ?? null;
+
+  return {
+    securityTxt,
+    robotsTxt: report.http.discovery?.["/robots.txt"] ?? null,
+    sitemapXml: report.http.discovery?.["/sitemap.xml"] ?? null
   };
 }
 
