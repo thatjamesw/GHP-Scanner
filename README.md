@@ -1,13 +1,14 @@
 # Scanner MVP
 
-Passive-first domain scanning for security posture and digital footprint mapping.
+Passive-first technical reconnaissance for domain posture, hosting-layer evidence, and ownership metadata.
 
 ## What this project does
 
-- Accepts a single apex domain such as `fortytwo.io`
-- Collects low-noise DNS, WHOIS, TLS, and HTTP metadata
+- Accepts a single apex domain such as `your-domain.com`
+- Collects low-noise DNS, WHOIS, TLS, HTTP, and hosting-layer metadata
 - Flags missing security headers and lightweight configuration issues
-- Surfaces related hosts, mail infrastructure, nameservers, TLS SANs, and likely related domains
+- Surfaces web stack clues such as `Server`, CDN/WAF hints, cache headers, TLS SANs, nameservers, and mail infrastructure
+- Produces a technical report organized into `page`, `headers`, `webstack`, `network`, `tls`, and `ownership` sections
 - Produces a single JSON report that can be opened in a static GitHub Pages UI
 
 ## Why the architecture looks like this
@@ -46,7 +47,7 @@ Instead it uses passive-first collection:
 - DNS records: `A`, `AAAA`, `MX`, `NS`, `TXT`, `CAA`
 - WHOIS via local `whois`
 - TLS certificate metadata from the apex
-- a small number of HTTP requests to the apex for headers and page-linked hosts
+- a small number of HTTP requests to the apex for headers, redirect behavior, and page-linked hosts
 
 ## Local usage
 
@@ -58,13 +59,13 @@ Requirements:
 Run a scan:
 
 ```bash
-npm run scan -- fortytwo.io
+npm run scan -- your-domain.com
 ```
 
 This writes:
 
 ```text
-reports/fortytwo.io.json
+reports/your-domain.com.json
 ```
 
 Start the static viewer locally:
@@ -114,20 +115,24 @@ The MVP currently checks:
 - missing CAA
 - lack of HTTPS redirect
 - TLS handshake failures
+- hosting-layer hints from `Server`, `Via`, `X-Cache`, `CF-*`, and related headers
+- ownership fingerprinting from WHOIS registrar and registrant fields
 
 ## Limits and next steps
 
-Without third-party data sources, related-domain discovery is necessarily conservative. It currently infers footprint from:
+Without third-party data sources, related-domain discovery is necessarily conservative. The current MVP infers technical footprint from:
 
 - certificate SANs
 - referenced page hosts
 - MX infrastructure
 - nameservers
 
+`WHOIS-linked domains` is currently marked as coming soon. True reverse-WHOIS expansion needs either a local comparison corpus or an external index; the current scanner only fingerprints ownership metadata from the single WHOIS record it can observe.
+
 Good next steps for the next iteration:
 
-1. Add parsing for `_dmarc.<domain>` instead of apex-only DMARC detection.
+1. Add redirect-chain and response-header capture beyond the final apex fetch.
 2. Support optional authenticated scans with stronger ownership checks.
 3. Add robots, sitemap, and security.txt discovery.
-4. Add GitHub Actions generation of a report artifact without storing historical scan data.
+4. Add optional reverse-WHOIS enrichment once we decide on a local index or external source.
 5. Add confidence and evidence objects for each finding.

@@ -41,11 +41,16 @@ async function main() {
     whois: {},
     tls: {},
     http: {},
+    page: {},
+    lists: {},
+    webstack: {},
+    ownership: {},
+    relationships: {},
     footprint: {
       ips: [],
       nameservers: [],
       mail: [],
-      relatedHosts: [],
+      webStackHosts: [],
       relatedDomains: []
     },
     raw: {}
@@ -65,7 +70,12 @@ async function main() {
   report.tls = tlsInfo.cleaned;
   report.http = httpInfo.cleaned;
 
-  report.footprint = buildFootprint(domain, dnsInfo.cleaned, tlsInfo.cleaned, httpInfo.cleaned);
+  report.footprint = buildFootprint(domain, dnsInfo.cleaned, tlsInfo.cleaned, httpInfo.cleaned, whoisInfo.cleaned);
+  report.page = buildPageView(report);
+  report.lists = buildListsView(report);
+  report.webstack = buildWebstackView(report);
+  report.ownership = buildOwnershipView(report);
+  report.relationships = buildRelationshipsView();
   report.findings = buildFindings(report);
   report.summary = buildSummary(report);
 
@@ -93,6 +103,7 @@ async function collectDns(domain) {
     cleaned: {
       a: [],
       aaaa: [],
+      cname: [],
       mx: [],
       ns: [],
       txt: {},
@@ -109,6 +120,7 @@ async function collectDns(domain) {
   const recordFetchers = [
     ["A", () => dns.resolve4(domain)],
     ["AAAA", () => dns.resolve6(domain)],
+    ["CNAME", () => dns.resolveCname(domain)],
     ["MX", () => dns.resolveMx(domain)],
     ["NS", () => dns.resolveNs(domain)],
     ["TXT", () => dns.resolveTxt(domain)],
@@ -146,6 +158,8 @@ async function collectDns(domain) {
         }));
       } else if (type === "NS") {
         result.cleaned.ns = value.map((item) => item.replace(/\.$/, ""));
+      } else if (type === "CNAME") {
+        result.cleaned.cname = value.map((item) => item.replace(/\.$/, ""));
       } else if (type === "A") {
         result.cleaned.a = value;
       } else if (type === "AAAA") {
@@ -192,6 +206,9 @@ async function collectWhois(domain) {
 function parseWhois(text) {
   const fields = [
     ["registrar", /^Registrar:\s*(.+)$/im],
+    ["registrantOrganization", /^Registrant Organization:\s*(.+)$/im],
+    ["registrantEmail", /^Registrant Email:\s*(.+)$/im],
+    ["registrantCountry", /^Registrant Country:\s*(.+)$/im],
     ["creationDate", /^Creation Date:\s*(.+)$/im],
     ["updatedDate", /^Updated Date:\s*(.+)$/im],
     ["expiryDate", /^Registry Expiry Date:\s*(.+)$/im],
@@ -218,7 +235,30 @@ function parseWhois(text) {
     parsed.nameServers = [...new Set(nameServerMatches)];
   }
 
+  parsed.relatednessFingerprint = buildWhoisFingerprint(parsed);
+  parsed.embeddedDomains = extractWhoisDomains(text);
+
   return parsed;
+}
+
+function buildWhoisFingerprint(parsed) {
+  const fingerprintFields = [
+    parsed.registrar,
+    parsed.registrantOrganization,
+    parsed.registrantEmail,
+    parsed.abuseEmail,
+    ...(parsed.nameServers ?? [])
+  ].filter(Boolean);
+
+  return [...new Set(fingerprintFields)];
+}
+
+function extractWhoisDomains(text) {
+  const domains = [...text.matchAll(/\b([a-z0-9.-]+\.[a-z]{2,})\b/gi)]
+    .map((match) => match[1].toLowerCase())
+    .filter((value) => !value.endsWith(".arpa"));
+
+  return [...new Set(domains)].slice(0, MAX_DISCOVERED_HOSTS);
 }
 
 async function collectTls(domain) {
@@ -243,6 +283,8 @@ async function collectTls(domain) {
             cipher,
             subject: peer.subject ?? {},
             issuer: peer.issuer ?? {},
+            serialNumber: peer.serialNumber ?? null,
+            fingerprint256: peer.fingerprint256 ?? null,
             validFrom: peer.valid_from ?? null,
             validTo: peer.valid_to ?? null,
             subjectAltNames: parseSubjectAltNames(peer.subjectaltname)
@@ -259,6 +301,8 @@ async function collectTls(domain) {
           cipher: null,
           subject: {},
           issuer: {},
+          serialNumber: null,
+          fingerprint256: null,
           validFrom: null,
           validTo: null,
           subjectAltNames: []
@@ -275,6 +319,8 @@ async function collectTls(domain) {
           cipher: null,
           subject: {},
           issuer: {},
+          serialNumber: null,
+          fingerprint256: null,
           validFrom: null,
           validTo: null,
           subjectAltNames: []
@@ -321,16 +367,21 @@ async function collectHttp(domain) {
   const availability = {
     http: results.some((item) => item.finalUrl)
   };
+  const hosting = summarizeHosting(preferred.headers ?? {}, preferred.finalUrl ?? null);
 
   return {
     cleaned: {
       checks: results.map(({ body, ...rest }) => rest),
+      status: preferred.status ?? null,
+      ok: preferred.ok ?? false,
+      redirected: Boolean(preferred.finalUrl && preferred.finalUrl !== preferred.url),
       effectiveUrl: preferred.finalUrl ?? null,
       title: extractTitle(preferred.body ?? ""),
       headers: preferred.headers ?? {},
       securityHeaders,
       extractedHosts,
-      availability
+      availability,
+      hosting
     }
   };
 }
@@ -396,33 +447,63 @@ function extractHostsFromBody(domain, html) {
   return related;
 }
 
-function buildFootprint(domain, dnsInfo, tlsInfo, httpInfo) {
+function summarizeHosting(headers, effectiveUrl) {
+  const signals = [
+    ["server", headers.server],
+    ["x-powered-by", headers["x-powered-by"]],
+    ["via", headers.via],
+    ["x-cache", headers["x-cache"]],
+    ["x-served-by", headers["x-served-by"]],
+    ["cf-cache-status", headers["cf-cache-status"]],
+    ["cf-ray", headers["cf-ray"]],
+    ["x-amz-cf-pop", headers["x-amz-cf-pop"]],
+    ["alt-svc", headers["alt-svc"]]
+  ].filter(([, value]) => Boolean(value));
+
+  const indicators = [];
+  const headerBlob = JSON.stringify(headers).toLowerCase();
+
+  if (headerBlob.includes("cloudflare") || headers["cf-ray"] || headers["cf-cache-status"]) {
+    indicators.push("cloudflare");
+  }
+  if (headerBlob.includes("fastly") || headers["x-served-by"]) {
+    indicators.push("fastly");
+  }
+  if (headerBlob.includes("akamai")) {
+    indicators.push("akamai");
+  }
+  if (headers["x-amz-cf-pop"] || headers["x-amz-cf-id"]) {
+    indicators.push("cloudfront");
+  }
+
+  return {
+    effectiveHostname: effectiveUrl ? new URL(effectiveUrl).hostname : null,
+    headerSignals: signals.map(([key, value]) => ({ key, value })),
+    indicators: [...new Set(indicators)]
+  };
+}
+
+function buildFootprint(domain, dnsInfo, tlsInfo, httpInfo, whoisInfo) {
   const ips = [...new Set([...(dnsInfo.a ?? []), ...(dnsInfo.aaaa ?? [])])];
-  const nameservers = [...new Set([...(dnsInfo.ns ?? []), ...((dnsInfo.nameServers ?? []))])];
+  const nameservers = [...new Set([...(dnsInfo.ns ?? []), ...((whoisInfo.nameServers ?? []))])];
   const mail = [...new Set((dnsInfo.mx ?? []).map((row) => row.exchange))];
-  const relatedHosts = [
+  const webStackHosts = [
+    ...(dnsInfo.cname ?? []),
     ...(tlsInfo.subjectAltNames ?? []),
     ...(httpInfo.extractedHosts ?? []),
-    ...mail,
-    ...nameservers
+    ...(httpInfo.hosting?.effectiveHostname ? [httpInfo.hosting.effectiveHostname] : [])
   ];
 
-  const dedupedHosts = [...new Set(relatedHosts)]
+  const dedupedHosts = [...new Set(webStackHosts)]
     .filter((host) => host !== domain)
     .slice(0, MAX_DISCOVERED_HOSTS);
-
-  const relatedDomains = [...new Set(
-    dedupedHosts
-      .map((host) => registrableGuess(host))
-      .filter(Boolean)
-  )].filter((item) => item !== domain);
 
   return {
     ips,
     nameservers,
     mail,
-    relatedHosts: dedupedHosts,
-    relatedDomains
+    webStackHosts: dedupedHosts,
+    relatedDomains: []
   };
 }
 
@@ -491,15 +572,6 @@ function buildFindings(report) {
     });
   }
 
-  if ((report.footprint.relatedDomains ?? []).length > 6) {
-    findings.push({
-      severity: "low",
-      category: "attack-surface",
-      title: "Broad external footprint",
-      description: "The domain references multiple related domains or service providers, which may increase attack surface and vendor exposure."
-    });
-  }
-
   if (httpAvailable && report.http.effectiveUrl?.startsWith("http://")) {
     findings.push({
       severity: "high",
@@ -545,10 +617,74 @@ function buildSummary(report) {
     score,
     rating,
     topSeverity,
+    status: topSeverity === "high" ? "red" : topSeverity === "medium" ? "amber" : "green",
     findingCount: report.findings.length,
     ips: report.footprint.ips.length,
-    relatedHosts: report.footprint.relatedHosts.length,
+    webStackHosts: report.footprint.webStackHosts.length,
     relatedDomains: report.footprint.relatedDomains.length
+  };
+}
+
+function buildPageView(report) {
+  return {
+    apexDomain: report.target,
+    effectiveUrl: report.http.effectiveUrl ?? null,
+    httpStatus: report.http.status ?? null,
+    title: report.http.title ?? null,
+    redirected: report.http.redirected ?? false,
+    primaryIPs: report.footprint.ips,
+    server: report.http.headers?.server ?? null,
+    tlsIssuer: report.tls.issuer?.CN ?? null,
+    tlsProtocol: report.tls.protocol ?? null
+  };
+}
+
+function buildListsView(report) {
+  return {
+    domains: [...new Set([
+      report.target,
+      ...(report.tls.subjectAltNames ?? []).map(registrableGuess).filter(Boolean),
+      ...(report.http.extractedHosts ?? []).map(registrableGuess).filter(Boolean)
+    ])],
+    hosts: report.footprint.webStackHosts,
+    ips: report.footprint.ips,
+    nameservers: report.footprint.nameservers,
+    mailServers: report.footprint.mail,
+    certificateNames: report.tls.subjectAltNames ?? []
+  };
+}
+
+function buildWebstackView(report) {
+  return {
+    serverHeader: report.http.headers?.server ?? null,
+    poweredBy: report.http.headers?.["x-powered-by"] ?? null,
+    reverseProxy: report.http.headers?.via ?? null,
+    cacheLayer: report.http.headers?.["x-cache"] ?? report.http.headers?.["cf-cache-status"] ?? null,
+    deliveryHints: report.http.hosting?.indicators ?? [],
+    headerSignals: report.http.hosting?.headerSignals ?? [],
+    observedHosts: report.footprint.webStackHosts
+  };
+}
+
+function buildOwnershipView(report) {
+  return {
+    registrar: report.whois.registrar ?? null,
+    registrantOrganization: report.whois.registrantOrganization ?? null,
+    registrantEmail: report.whois.registrantEmail ?? null,
+    registrantCountry: report.whois.registrantCountry ?? null,
+    abuseEmail: report.whois.abuseEmail ?? null,
+    nameServers: report.whois.nameServers ?? [],
+    fingerprint: report.whois.relatednessFingerprint ?? []
+  };
+}
+
+function buildRelationshipsView() {
+  return {
+    whoisLinkedDomains: {
+      status: "coming-soon",
+      rationale: "Reverse WHOIS expansion requires a comparison corpus or external index. The local scanner currently fingerprints ownership data only.",
+      candidates: []
+    }
   };
 }
 

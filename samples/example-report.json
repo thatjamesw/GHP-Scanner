@@ -1,15 +1,16 @@
 {
   "schemaVersion": 1,
   "generatedAt": "2026-03-28T12:00:00.000Z",
-  "target": "fortytwo.io",
+  "target": "your-domain.com",
   "summary": {
     "score": 74,
     "rating": "watch",
     "topSeverity": "medium",
-    "findingCount": 5,
+    "status": "amber",
+    "findingCount": 4,
     "ips": 2,
-    "relatedHosts": 5,
-    "relatedDomains": 3
+    "webStackHosts": 4,
+    "relatedDomains": 0
   },
   "findings": [
     {
@@ -35,12 +36,6 @@
       "category": "certificate-governance",
       "title": "No CAA policy",
       "description": "No CAA records were found, so certificate issuance is not explicitly constrained by DNS."
-    },
-    {
-      "severity": "low",
-      "category": "attack-surface",
-      "title": "Broad external footprint",
-      "description": "The domain references multiple related domains or service providers, which may increase attack surface and vendor exposure."
     }
   ],
   "safeguards": {
@@ -56,6 +51,9 @@
       "172.67.56.78"
     ],
     "aaaa": [],
+    "cname": [
+      "edge.example.net"
+    ],
     "mx": [
       {
         "exchange": "aspmx.l.google.com",
@@ -69,10 +67,31 @@
     "txt": {
       "spf": "v=spf1 include:_spf.google.com ~all"
     },
-    "caa": []
+    "caa": [],
+    "availability": {
+      "dns": true,
+      "txt": true,
+      "dmarc": true
+    }
   },
   "whois": {
-    "registrar": "Example Registrar, Inc."
+    "registrar": "Example Registrar, Inc.",
+    "registrantOrganization": "Example Holdings Ltd",
+    "registrantEmail": "hostmaster@your-domain.com",
+    "registrantCountry": "GB",
+    "abuseEmail": "abuse@example-registrar.com",
+    "nameServers": [
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ],
+    "relatednessFingerprint": [
+      "Example Registrar, Inc.",
+      "Example Holdings Ltd",
+      "hostmaster@your-domain.com",
+      "abuse@example-registrar.com",
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ]
   },
   "tls": {
     "protocol": "TLSv1.3",
@@ -80,36 +99,45 @@
       "name": "TLS_AES_256_GCM_SHA384"
     },
     "subject": {
-      "CN": "fortytwo.io"
+      "CN": "your-domain.com"
     },
     "issuer": {
       "CN": "Example CA"
     },
+    "serialNumber": "01ABCD23",
+    "fingerprint256": "AA:BB:CC:DD:EE:FF",
     "validFrom": "Jan 1 00:00:00 2026 GMT",
     "validTo": "Apr 1 23:59:59 2026 GMT",
     "subjectAltNames": [
-      "fortytwo.io",
-      "www.fortytwo.io",
-      "assets.fortytwo.io"
+      "your-domain.com",
+      "www.your-domain.com",
+      "assets.your-domain.com"
     ]
   },
   "http": {
     "checks": [
       {
-        "url": "https://fortytwo.io",
+        "url": "https://your-domain.com",
         "status": 200,
         "ok": true,
-        "finalUrl": "https://fortytwo.io",
+        "finalUrl": "https://your-domain.com",
         "headers": {
-          "strict-transport-security": "max-age=31536000"
+          "server": "cloudflare",
+          "strict-transport-security": "max-age=31536000",
+          "cf-cache-status": "DYNAMIC"
         }
       }
     ],
-    "effectiveUrl": "https://fortytwo.io",
+    "status": 200,
+    "ok": true,
+    "redirected": false,
+    "effectiveUrl": "https://your-domain.com",
     "title": "Example",
     "headers": {
+      "server": "cloudflare",
       "strict-transport-security": "max-age=31536000",
-      "x-frame-options": "SAMEORIGIN"
+      "x-frame-options": "SAMEORIGIN",
+      "cf-cache-status": "DYNAMIC"
     },
     "securityHeaders": {
       "strict-transport-security": "present",
@@ -122,7 +150,120 @@
     "extractedHosts": [
       "cdn.example.net",
       "images.example-cdn.com"
+    ],
+    "availability": {
+      "http": true
+    },
+    "hosting": {
+      "effectiveHostname": "your-domain.com",
+      "headerSignals": [
+        {
+          "key": "server",
+          "value": "cloudflare"
+        },
+        {
+          "key": "cf-cache-status",
+          "value": "DYNAMIC"
+        }
+      ],
+      "indicators": [
+        "cloudflare"
+      ]
+    }
+  },
+  "page": {
+    "apexDomain": "your-domain.com",
+    "effectiveUrl": "https://your-domain.com",
+    "httpStatus": 200,
+    "title": "Example",
+    "redirected": false,
+    "primaryIPs": [
+      "104.21.12.34",
+      "172.67.56.78"
+    ],
+    "server": "cloudflare",
+    "tlsIssuer": "Example CA",
+    "tlsProtocol": "TLSv1.3"
+  },
+  "lists": {
+    "domains": [
+      "your-domain.com",
+      "example.net",
+      "example-cdn.com"
+    ],
+    "hosts": [
+      "edge.example.net",
+      "www.your-domain.com",
+      "assets.your-domain.com",
+      "cdn.example.net"
+    ],
+    "ips": [
+      "104.21.12.34",
+      "172.67.56.78"
+    ],
+    "nameservers": [
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ],
+    "mailServers": [
+      "aspmx.l.google.com"
+    ],
+    "certificateNames": [
+      "your-domain.com",
+      "www.your-domain.com",
+      "assets.your-domain.com"
     ]
+  },
+  "webstack": {
+    "serverHeader": "cloudflare",
+    "poweredBy": null,
+    "reverseProxy": null,
+    "cacheLayer": "DYNAMIC",
+    "deliveryHints": [
+      "cloudflare"
+    ],
+    "headerSignals": [
+      {
+        "key": "server",
+        "value": "cloudflare"
+      },
+      {
+        "key": "cf-cache-status",
+        "value": "DYNAMIC"
+      }
+    ],
+    "observedHosts": [
+      "edge.example.net",
+      "www.your-domain.com",
+      "assets.your-domain.com",
+      "cdn.example.net"
+    ]
+  },
+  "ownership": {
+    "registrar": "Example Registrar, Inc.",
+    "registrantOrganization": "Example Holdings Ltd",
+    "registrantEmail": "hostmaster@your-domain.com",
+    "registrantCountry": "GB",
+    "abuseEmail": "abuse@example-registrar.com",
+    "nameServers": [
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ],
+    "fingerprint": [
+      "Example Registrar, Inc.",
+      "Example Holdings Ltd",
+      "hostmaster@your-domain.com",
+      "abuse@example-registrar.com",
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ]
+  },
+  "relationships": {
+    "whoisLinkedDomains": {
+      "status": "coming-soon",
+      "rationale": "Reverse WHOIS expansion requires a comparison corpus or external index. The local scanner currently fingerprints ownership data only.",
+      "candidates": []
+    }
   },
   "footprint": {
     "ips": [
@@ -136,18 +277,13 @@
     "mail": [
       "aspmx.l.google.com"
     ],
-    "relatedHosts": [
-      "www.fortytwo.io",
-      "assets.fortytwo.io",
-      "cdn.example.net",
-      "images.example-cdn.com",
-      "aspmx.l.google.com"
+    "webStackHosts": [
+      "edge.example.net",
+      "www.your-domain.com",
+      "assets.your-domain.com",
+      "cdn.example.net"
     ],
-    "relatedDomains": [
-      "example.net",
-      "example-cdn.com",
-      "google.com"
-    ]
+    "relatedDomains": []
   },
   "raw": {
     "dns": {},

@@ -1,16 +1,18 @@
 :root {
-  --bg: #f4efe7;
-  --bg-alt: #fffaf3;
-  --ink: #1d2a2a;
-  --muted: #586565;
-  --line: rgba(29, 42, 42, 0.12);
-  --panel: rgba(255, 250, 243, 0.88);
-  --accent: #0b6e4f;
-  --accent-soft: rgba(11, 110, 79, 0.12);
-  --danger: #a63d40;
-  --warn: #a76814;
-  --radius: 20px;
-  --shadow: 0 20px 60px rgba(41, 36, 29, 0.12);
+  --bg: #0b1220;
+  --bg-alt: #0f172a;
+  --ink: #d9e2f2;
+  --muted: #8ca0bd;
+  --line: rgba(140, 160, 189, 0.18);
+  --panel: rgba(15, 23, 42, 0.88);
+  --green: #16a34a;
+  --green-soft: rgba(22, 163, 74, 0.14);
+  --amber: #d97706;
+  --amber-soft: rgba(217, 119, 6, 0.14);
+  --red: #dc2626;
+  --red-soft: rgba(220, 38, 38, 0.14);
+  --radius: 18px;
+  --shadow: 0 20px 60px rgba(2, 6, 23, 0.45);
 }
 
 * {
@@ -20,22 +22,22 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(11, 110, 79, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(167, 104, 20, 0.14), transparent 24%),
+    radial-gradient(circle at top left, rgba(22, 163, 74, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(217, 119, 6, 0.1), transparent 24%),
     linear-gradient(180deg, var(--bg-alt), var(--bg));
 }
 
 .shell {
-  width: min(1120px, calc(100vw - 32px));
+  width: min(1280px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 48px 0 80px;
+  padding: 40px 0 80px;
 }
 
 .hero {
-  padding: 32px 8px 20px;
+  padding: 24px 8px 18px;
 }
 
 .eyebrow,
@@ -55,15 +57,21 @@ p {
 }
 
 h1 {
-  max-width: 12ch;
-  font-size: clamp(2.8rem, 8vw, 5.6rem);
-  line-height: 0.92;
+  max-width: 14ch;
+  font-size: clamp(2.7rem, 7vw, 5rem);
+  line-height: 0.98;
+}
+
+h3 {
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: 1rem;
+  letter-spacing: 0.03em;
 }
 
 .lede {
-  max-width: 62ch;
-  font-size: 1.08rem;
-  line-height: 1.6;
+  max-width: 78ch;
+  font-size: 1.02rem;
+  line-height: 1.65;
   color: var(--muted);
 }
 
@@ -96,12 +104,12 @@ button {
 }
 
 button {
-  border: none;
   border-radius: 999px;
   padding: 14px 22px;
-  background: var(--ink);
-  color: white;
+  background: #1e293b;
+  color: var(--ink);
   cursor: pointer;
+  border: 1px solid var(--line);
 }
 
 .empty-state {
@@ -125,7 +133,7 @@ button {
 
 .metric h2 {
   margin: 0;
-  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-size: clamp(1.3rem, 3vw, 2.2rem);
 }
 
 .stack {
@@ -140,27 +148,65 @@ button {
 .item {
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.55);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.68);
 }
 
 .item strong {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: 0.9rem;
+  color: #e5edf9;
+}
+
+.item span {
+  color: var(--muted);
+  line-height: 1.55;
+  word-break: break-word;
 }
 
 .severity-high {
-  border-color: rgba(166, 61, 64, 0.3);
-  background: rgba(166, 61, 64, 0.08);
+  border-color: rgba(220, 38, 38, 0.45);
+  background: var(--red-soft);
 }
 
 .severity-medium {
-  border-color: rgba(167, 104, 20, 0.3);
-  background: rgba(167, 104, 20, 0.08);
+  border-color: rgba(217, 119, 6, 0.45);
+  background: var(--amber-soft);
 }
 
 .severity-low {
-  border-color: var(--accent-soft);
+  border-color: rgba(22, 163, 74, 0.45);
+  background: var(--green-soft);
+}
+
+.status-red {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: var(--red-soft);
+  color: #fecaca;
+}
+
+.status-amber {
+  border-color: rgba(217, 119, 6, 0.45);
+  background: var(--amber-soft);
+  color: #fed7aa;
+}
+
+.status-green {
+  border-color: rgba(22, 163, 74, 0.45);
+  background: var(--green-soft);
+  color: #bbf7d0;
+}
+
+.metric-status {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: clamp(1rem, 2vw, 1.2rem);
 }
 
 .hidden {
@@ -168,10 +214,10 @@ button {
 }
 
 code {
-  font-family: "SF Mono", "Menlo", monospace;
+  font-family: "IBM Plex Mono", "SF Mono", "Menlo", monospace;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .summary-grid,
   .grid {
     grid-template-columns: 1fr;
