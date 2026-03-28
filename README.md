@@ -83,13 +83,21 @@ Load the report JSON from `reports/`.
 
 ## Deploying to GitHub Pages
 
-Because the frontend is plain static assets, you can publish the repository root to GitHub Pages directly.
+This repo now includes a GitHub Actions workflow at [deploy-pages.yml](/Users/jameswright/dev/_mvp/scanner/.github/workflows/deploy-pages.yml) that publishes the static viewer automatically from `main`.
+
+The workflow deploys only:
+
+- `index.html`
+- `styles.css`
+- `src/`
+- `samples/`
 
 Important:
 
 - GitHub Pages only hosts the viewer
 - domain scanning still happens locally
 - the generated JSON report is loaded client-side and does not need to be stored server-side
+- `reports/` is ignored and is not published
 
 ## Current heuristics
 
