@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scanner MVP</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Passive-first Domain Scanning</p>
+        <h1>Map a domain’s security posture and digital footprint.</h1>
+        <p class="lede">
+          Generate a local JSON scan with the CLI, then open it here on GitHub Pages or any static host.
+          No database, no third-party API dependency, and no brute-force enumeration.
+        </p>
+      </section>
+
+      <section class="panel controls">
+        <div>
+          <label for="reportFile">Open report JSON</label>
+          <input id="reportFile" type="file" accept="application/json">
+        </div>
+        <button id="loadSample" type="button">Load sample report</button>
+      </section>
+
+      <section id="emptyState" class="panel empty-state">
+        <h2>No report loaded</h2>
+        <p>Run <code>npm run scan -- fortytwo.io</code> locally, then load the generated file from <code>reports/</code>.</p>
+      </section>
+
+      <section id="reportView" class="report hidden">
+        <div class="grid summary-grid">
+          <article class="panel metric">
+            <p class="label">Target</p>
+            <h2 id="targetValue">-</h2>
+          </article>
+          <article class="panel metric">
+            <p class="label">Score</p>
+            <h2 id="scoreValue">-</h2>
+          </article>
+          <article class="panel metric">
+            <p class="label">Findings</p>
+            <h2 id="findingValue">-</h2>
+          </article>
+          <article class="panel metric">
+            <p class="label">Related Domains</p>
+            <h2 id="relatedDomainValue">-</h2>
+          </article>
+        </div>
+
+        <div class="grid">
+          <article class="panel">
+            <h3>Findings</h3>
+            <div id="findingsList" class="stack"></div>
+          </article>
+          <article class="panel">
+            <h3>Security Headers</h3>
+            <div id="headerList" class="stack"></div>
+          </article>
+        </div>
+
+        <div class="grid">
+          <article class="panel">
+            <h3>Infrastructure</h3>
+            <div id="infraList" class="stack"></div>
+          </article>
+          <article class="panel">
+            <h3>Related Hosts</h3>
+            <div id="footprintList" class="stack"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+  </html>

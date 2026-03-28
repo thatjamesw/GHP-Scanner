@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-03-28T12:00:00.000Z",
+  "target": "fortytwo.io",
+  "summary": {
+    "score": 74,
+    "rating": "watch",
+    "topSeverity": "medium",
+    "findingCount": 5,
+    "ips": 2,
+    "relatedHosts": 5,
+    "relatedDomains": 3
+  },
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "security-header",
+      "title": "Missing content-security-policy",
+      "description": "The apex response did not include content-security-policy."
+    },
+    {
+      "severity": "low",
+      "category": "security-header",
+      "title": "Missing referrer-policy",
+      "description": "The apex response did not include referrer-policy."
+    },
+    {
+      "severity": "medium",
+      "category": "email-security",
+      "title": "Missing DMARC",
+      "description": "No DMARC TXT record was found for the apex domain."
+    },
+    {
+      "severity": "low",
+      "category": "certificate-governance",
+      "title": "No CAA policy",
+      "description": "No CAA records were found, so certificate issuance is not explicitly constrained by DNS."
+    },
+    {
+      "severity": "low",
+      "category": "attack-surface",
+      "title": "Broad external footprint",
+      "description": "The domain references multiple related domains or service providers, which may increase attack surface and vendor exposure."
+    }
+  ],
+  "safeguards": {
+    "scanMode": "passive-first",
+    "notes": [
+      "No brute-force subdomain enumeration is performed.",
+      "HTTP collection is limited to the apex and common redirect target."
+    ]
+  },
+  "dns": {
+    "a": [
+      "104.21.12.34",
+      "172.67.56.78"
+    ],
+    "aaaa": [],
+    "mx": [
+      {
+        "exchange": "aspmx.l.google.com",
+        "priority": 1
+      }
+    ],
+    "ns": [
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ],
+    "txt": {
+      "spf": "v=spf1 include:_spf.google.com ~all"
+    },
+    "caa": []
+  },
+  "whois": {
+    "registrar": "Example Registrar, Inc."
+  },
+  "tls": {
+    "protocol": "TLSv1.3",
+    "cipher": {
+      "name": "TLS_AES_256_GCM_SHA384"
+    },
+    "subject": {
+      "CN": "fortytwo.io"
+    },
+    "issuer": {
+      "CN": "Example CA"
+    },
+    "validFrom": "Jan 1 00:00:00 2026 GMT",
+    "validTo": "Apr 1 23:59:59 2026 GMT",
+    "subjectAltNames": [
+      "fortytwo.io",
+      "www.fortytwo.io",
+      "assets.fortytwo.io"
+    ]
+  },
+  "http": {
+    "checks": [
+      {
+        "url": "https://fortytwo.io",
+        "status": 200,
+        "ok": true,
+        "finalUrl": "https://fortytwo.io",
+        "headers": {
+          "strict-transport-security": "max-age=31536000"
+        }
+      }
+    ],
+    "effectiveUrl": "https://fortytwo.io",
+    "title": "Example",
+    "headers": {
+      "strict-transport-security": "max-age=31536000",
+      "x-frame-options": "SAMEORIGIN"
+    },
+    "securityHeaders": {
+      "strict-transport-security": "present",
+      "content-security-policy": "missing",
+      "x-frame-options": "present",
+      "x-content-type-options": "missing",
+      "referrer-policy": "missing",
+      "permissions-policy": "missing"
+    },
+    "extractedHosts": [
+      "cdn.example.net",
+      "images.example-cdn.com"
+    ]
+  },
+  "footprint": {
+    "ips": [
+      "104.21.12.34",
+      "172.67.56.78"
+    ],
+    "nameservers": [
+      "ns1.example-dns.com",
+      "ns2.example-dns.com"
+    ],
+    "mail": [
+      "aspmx.l.google.com"
+    ],
+    "relatedHosts": [
+      "www.fortytwo.io",
+      "assets.fortytwo.io",
+      "cdn.example.net",
+      "images.example-cdn.com",
+      "aspmx.l.google.com"
+    ],
+    "relatedDomains": [
+      "example.net",
+      "example-cdn.com",
+      "google.com"
+    ]
+  },
+  "raw": {
+    "dns": {},
+    "whois": "Example raw whois output"
+  }
+}

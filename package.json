@@ -1,0 +1,15 @@
+{
+  "name": "scanner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Passive-first domain footprint and security scanner with a static report viewer.",
+  "type": "module",
+  "scripts": {
+    "scan": "node ./scripts/scan-domain.js",
+    "serve": "python3 -m http.server 4173",
+    "test": "node ./scripts/test-report.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
