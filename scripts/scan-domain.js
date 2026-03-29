@@ -6,11 +6,36 @@ import { mkdir, writeFile } from "node:fs/promises";
 import dns from "node:dns/promises";
 import tls from "node:tls";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const execFileAsync = promisify(execFile);
 const REQUEST_TIMEOUT_MS = 8000;
 const MAX_DISCOVERED_HOSTS = 20;
 const MAX_IP_INTEL = 12;
+const COMMON_DKIM_SELECTORS = [
+  "default",
+  "default1",
+  "default2",
+  "selector1",
+  "selector2",
+  "selector3",
+  "google",
+  "dkim",
+  "k1",
+  "s1",
+  "s2",
+  "s1024",
+  "mail",
+  "smtp",
+  "mandrill",
+  "mailgun",
+  "sendgrid",
+  "amazonses",
+  "zoho",
+  "krs",
+  "m1",
+  "m2"
+];
 const USER_AGENT = "scanner-mvp/0.1 (+local-passive-scan)";
 
 async function main() {
@@ -50,6 +75,7 @@ async function main() {
     website: {},
     infrastructure: {},
     delivery: {},
+    email: {},
     posture: {},
     discovery: {},
     exposures: {},
@@ -78,7 +104,9 @@ async function main() {
   report.whois = whoisInfo.cleaned;
   report.raw.whois = whoisInfo.raw;
   report.tls = tlsInfo.cleaned;
+  report.raw.tls = tlsInfo.raw;
   report.http = httpInfo.cleaned;
+  report.raw.http = httpInfo.raw;
   report.ip = await collectIpIntelligence([...new Set([...(dnsInfo.cleaned.a ?? []), ...(dnsInfo.cleaned.aaaa ?? [])])]);
 
   report.footprint = buildFootprint(domain, dnsInfo.cleaned, tlsInfo.cleaned, httpInfo.cleaned, whoisInfo.cleaned);
@@ -90,11 +118,12 @@ async function main() {
   report.website = buildWebsiteView(report);
   report.infrastructure = buildInfrastructureView(report);
   report.delivery = buildDeliveryView(report);
+  report.email = buildEmailView(report);
   report.posture = buildPostureView(report);
   report.discovery = buildDiscoveryView(report);
   report.exposures = buildExposureView(report);
   report.ownership = buildOwnershipView(report);
-  report.relationships = buildRelationshipsView();
+  report.relationships = buildRelationshipsView(report);
   report.findings = buildFindings(report);
   report.summary = buildSummary(report);
 
@@ -222,7 +251,380 @@ async function collectDns(domain) {
     result.raw.DMARC = { error: error.message };
   }
 
+  try {
+    const mtaStsRows = await dns.resolveTxt(`_mta-sts.${domain}`);
+    result.raw.MTA_STS = mtaStsRows;
+    for (const row of mtaStsRows) {
+      const joined = row.join("");
+      if (joined.toLowerCase().startsWith("v=stsv1")) {
+        result.cleaned.txt.mtaSts = joined;
+      }
+    }
+  } catch (error) {
+    result.raw.MTA_STS = { error: error.message };
+  }
+
+  try {
+    const tlsRptRows = await dns.resolveTxt(`_smtp._tls.${domain}`);
+    result.raw.TLS_RPT = tlsRptRows;
+    for (const row of tlsRptRows) {
+      const joined = row.join("");
+      if (joined.toLowerCase().startsWith("v=tlsrptv1")) {
+        result.cleaned.txt.tlsRpt = joined;
+      }
+    }
+  } catch (error) {
+    result.raw.TLS_RPT = { error: error.message };
+  }
+
+  try {
+    const bimiRows = await dns.resolveTxt(`default._bimi.${domain}`);
+    result.raw.BIMI = bimiRows;
+    for (const row of bimiRows) {
+      const joined = row.join("");
+      if (joined.toLowerCase().startsWith("v=bimi1")) {
+        result.cleaned.txt.bimi = joined;
+      }
+    }
+  } catch (error) {
+    result.raw.BIMI = { error: error.message };
+  }
+
+  result.cleaned.txt.spfAnalysis = analyzeSpf(result.cleaned.txt.spf ?? null);
+  result.cleaned.txt.dmarcAnalysis = analyzeDmarc(result.cleaned.txt.dmarc ?? null);
+  result.cleaned.txt.tlsRptAnalysis = analyzeTlsRpt(result.cleaned.txt.tlsRpt ?? null);
+  result.cleaned.txt.bimiAnalysis = analyzeBimi(result.cleaned.txt.bimi ?? null);
+  result.cleaned.txt.mtaStsAnalysis = analyzeMtaSts(result.cleaned.txt.mtaSts ?? null);
+  result.cleaned.mxProviderInferences = inferMailProviders(result.cleaned.mx, result.cleaned.txt.spf ?? null);
+  result.cleaned.mxProviderHints = inferenceLabels(result.cleaned.mxProviderInferences);
+  result.cleaned.nsProviderInferences = inferDnsProviders(result.cleaned.ns);
+  result.cleaned.nsProviderHints = inferenceLabels(result.cleaned.nsProviderInferences);
+  result.cleaned.dkim = await collectCommonDkim(domain, result.raw, {
+    mxProviders: result.cleaned.mxProviderHints,
+    spf: result.cleaned.txt.spf ?? null
+  });
+  result.cleaned.dkim.providerInferences = inferDkimProviders(result.cleaned.dkim.discovered ?? [], result.cleaned.txt.spf ?? null);
+
   return result;
+}
+
+async function collectCommonDkim(domain, rawDns, context = {}) {
+  const selectorsToCheck = buildDkimSelectorCandidates(context);
+  const selectors = [];
+
+  for (const selector of selectorsToCheck) {
+    const fqdn = `${selector}._domainkey.${domain}`;
+    try {
+      const rows = await dns.resolveTxt(fqdn);
+      rawDns[`DKIM_${selector}`] = rows;
+      const joined = rows.map((row) => row.join("")).join(" ");
+      if (joined.toLowerCase().includes("v=dkim1")) {
+        selectors.push({
+          selector,
+          record: joined
+        });
+      }
+    } catch (error) {
+      rawDns[`DKIM_${selector}`] = { error: error.message };
+    }
+  }
+
+  return {
+    checkedSelectors: selectorsToCheck,
+    discovered: selectors
+  };
+}
+
+function buildDkimSelectorCandidates(context) {
+  const selectors = new Set(COMMON_DKIM_SELECTORS);
+  const spf = (context.spf ?? "").toLowerCase();
+  const mxProviders = new Set((context.mxProviders ?? []).map((item) => item.toLowerCase()));
+
+  if (mxProviders.has("google workspace") || spf.includes("_spf.google.com")) {
+    selectors.add("google");
+  }
+  if (mxProviders.has("microsoft 365") || spf.includes("spf.protection.outlook.com")) {
+    selectors.add("selector1");
+    selectors.add("selector2");
+  }
+  if (mxProviders.has("amazon ses") || spf.includes("amazonses.com")) {
+    selectors.add("amazonses");
+    selectors.add("selector1");
+    selectors.add("selector2");
+  }
+  if (mxProviders.has("mailgun") || spf.includes("mailgun.org")) {
+    selectors.add("mailgun");
+    selectors.add("k1");
+  }
+  if (mxProviders.has("sendgrid") || spf.includes("sendgrid.net")) {
+    selectors.add("sendgrid");
+    selectors.add("s1");
+    selectors.add("s2");
+  }
+  if (mxProviders.has("fastmail")) {
+    selectors.add("fm1");
+    selectors.add("fm2");
+  }
+
+  return [...selectors];
+}
+
+function analyzeSpf(record) {
+  if (!record) {
+    return {
+      present: false,
+      includeCount: 0,
+      lookupCount: 0,
+      allQualifier: null,
+      flags: []
+    };
+  }
+
+  const lower = record.toLowerCase();
+  const includeCount = (lower.match(/\binclude:/g) ?? []).length;
+  const redirectCount = (lower.match(/\bredirect=/g) ?? []).length;
+  const lookupCount = [
+    ...(lower.match(/\binclude:/g) ?? []),
+    ...(lower.match(/\ba(?::|$)/g) ?? []),
+    ...(lower.match(/\bmx(?::|$)/g) ?? []),
+    ...(lower.match(/\bptr(?::|$)/g) ?? []),
+    ...(lower.match(/\bexists:/g) ?? []),
+    ...(lower.match(/\bredirect=/g) ?? [])
+  ].length;
+
+  const allMatch = lower.match(/([+\-~?])all\b/);
+  const allQualifier = allMatch ? allMatch[1] : null;
+  const flags = [];
+
+  if (!allQualifier) {
+    flags.push("missing-all");
+  } else if (allQualifier === "+") {
+    flags.push("allow-all");
+  } else if (allQualifier === "?") {
+    flags.push("neutral-all");
+  } else if (allQualifier === "~") {
+    flags.push("softfail");
+  } else if (allQualifier === "-") {
+    flags.push("hardfail");
+  }
+
+  if (lookupCount >= 10) {
+    flags.push("lookup-limit-risk");
+  } else if (lookupCount >= 7) {
+    flags.push("lookup-pressure");
+  }
+
+  if (includeCount >= 5) {
+    flags.push("many-includes");
+  }
+  if (redirectCount > 0) {
+    flags.push("uses-redirect");
+  }
+
+  return {
+    present: true,
+    includeCount,
+    lookupCount,
+    allQualifier,
+    flags
+  };
+}
+
+function analyzeDmarc(record) {
+  if (!record) {
+    return {
+      present: false,
+      policy: null,
+      subdomainPolicy: null,
+      rua: [],
+      ruf: [],
+      flags: []
+    };
+  }
+
+  const lower = record.toLowerCase();
+  const policy = (lower.match(/\bp=([a-z]+)/) ?? [null, null])[1];
+  const subdomainPolicy = (lower.match(/\bsp=([a-z]+)/) ?? [null, null])[1];
+  const rua = extractTagValues(record, "rua");
+  const ruf = extractTagValues(record, "ruf");
+  const flags = [];
+
+  if (policy === "none") {
+    flags.push("monitoring-only");
+  } else if (policy === "quarantine") {
+    flags.push("partial-enforcement");
+  } else if (policy === "reject") {
+    flags.push("strong-enforcement");
+  }
+  if (!rua.length) {
+    flags.push("missing-aggregate-reporting");
+  }
+
+  return {
+    present: true,
+    policy,
+    subdomainPolicy,
+    rua,
+    ruf,
+    flags
+  };
+}
+
+function analyzeTlsRpt(record) {
+  if (!record) {
+    return { present: false, rua: [], flags: [] };
+  }
+
+  const rua = extractTagValues(record, "rua");
+  return {
+    present: true,
+    rua,
+    flags: rua.length ? ["reporting-enabled"] : ["missing-report-uri"]
+  };
+}
+
+function analyzeBimi(record) {
+  if (!record) {
+    return { present: false, location: null, authority: null, flags: [] };
+  }
+
+  const location = (record.match(/\bl=([^;]+)/i) ?? [null, null])[1]?.trim() ?? null;
+  const authority = (record.match(/\ba=([^;]+)/i) ?? [null, null])[1]?.trim() ?? null;
+  const flags = [];
+  if (!location) {
+    flags.push("missing-logo-location");
+  }
+  if (!authority) {
+    flags.push("missing-authority");
+  }
+
+  return {
+    present: true,
+    location,
+    authority,
+    flags
+  };
+}
+
+function analyzeMtaSts(record) {
+  if (!record) {
+    return { present: false, mode: null, flags: [] };
+  }
+
+  const mode = (record.match(/\bmode=([^;]+)/i) ?? [null, null])[1]?.trim() ?? null;
+  const flags = [];
+  if (!mode) {
+    flags.push("missing-mode");
+  } else {
+    flags.push(`mode-${mode}`);
+  }
+
+  return {
+    present: true,
+    mode,
+    flags
+  };
+}
+
+function extractTagValues(record, tag) {
+  const match = record.match(new RegExp(`\\b${tag}=([^;]+)`, "i"));
+  if (!match) {
+    return [];
+  }
+  return match[1].split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function inferMailProviders(mxRows, spfRecord) {
+  const inferences = [];
+  const hostBlob = (mxRows ?? []).map((row) => row.exchange?.toLowerCase() ?? "").join(" ");
+  const spf = (spfRecord ?? "").toLowerCase();
+  const rules = [
+    ["Google Workspace", [["mx-host", hostBlob.includes("google.com") || hostBlob.includes("googlemail.com") ? "google mail exchangers" : null], ["spf", spf.includes("_spf.google.com") ? "include:_spf.google.com" : null]]],
+    ["Microsoft 365", [["mx-host", hostBlob.includes("outlook.com") || hostBlob.includes("protection.outlook.com") ? "outlook protection exchangers" : null], ["spf", spf.includes("spf.protection.outlook.com") ? "include:spf.protection.outlook.com" : null]]],
+    ["Proofpoint", [["mx-host", hostBlob.includes("pphosted.com") || hostBlob.includes("proofpoint.com") ? "proofpoint mail exchangers" : null]]],
+    ["Mimecast", [["mx-host", hostBlob.includes("mimecast") ? "mimecast mail exchangers" : null], ["spf", spf.includes("mimecast.com") ? "mimecast SPF include" : null]]],
+    ["Zoho Mail", [["mx-host", hostBlob.includes("zoho") ? "zoho mail exchangers" : null], ["spf", spf.includes("zoho.com") ? "zoho SPF include" : null]]],
+    ["Amazon SES", [["mx-host", hostBlob.includes("amazonses.com") ? "amazonses mail exchangers" : null], ["spf", spf.includes("amazonses.com") ? "amazonses SPF include" : null]]],
+    ["Mailgun", [["mx-host", hostBlob.includes("mailgun.org") ? "mailgun exchangers" : null], ["spf", spf.includes("mailgun.org") ? "mailgun SPF include" : null]]],
+    ["SendGrid", [["mx-host", hostBlob.includes("sendgrid.net") ? "sendgrid exchangers" : null], ["spf", spf.includes("sendgrid.net") ? "sendgrid SPF include" : null]]],
+    ["Barracuda", [["mx-host", hostBlob.includes("barracudanetworks") ? "barracuda exchangers" : null], ["spf", spf.includes("barracudanetworks.com") ? "barracuda SPF include" : null]]],
+    ["Cisco Secure Email", [["mx-host", hostBlob.includes("iphmx.com") ? "iphmx exchangers" : null], ["spf", spf.includes("iphmx.com") ? "iphmx SPF include" : null]]],
+    ["Fastmail", [["mx-host", hostBlob.includes("messagingengine.com") ? "messagingengine exchangers" : null], ["spf", spf.includes("spf.messagingengine.com") ? "fastmail SPF include" : null]]],
+    ["Proton Mail", [["mx-host", hostBlob.includes("protonmail") ? "proton mail exchangers" : null], ["spf", spf.includes("protonmail.ch") || spf.includes("proton.me") ? "proton SPF include" : null]]]
+  ];
+
+  for (const [label, candidates] of rules) {
+    const matches = candidates.filter(([, value]) => Boolean(value));
+    if (!matches.length) {
+      continue;
+    }
+    inferences.push(makeInference(
+      label,
+      matches.length >= 2 ? 0.92 : 0.75,
+      matches.map(([source, value]) => evidence(source, String(value)))
+    ));
+  }
+
+  return mergeInferences(inferences);
+}
+
+function inferDkimProviders(dkimEntries, spfRecord) {
+  const inferences = [];
+  const recordsBlob = (dkimEntries ?? []).map((entry) => `${entry.selector} ${entry.record}`.toLowerCase()).join(" ");
+  const spf = (spfRecord ?? "").toLowerCase();
+  const rules = [
+    ["Google Workspace", [["dkim", recordsBlob.includes("google") ? "google marker in DKIM record" : null], ["spf", spf.includes("_spf.google.com") ? "include:_spf.google.com" : null]]],
+    ["Microsoft 365", [["dkim", recordsBlob.includes("onmicrosoft.com") ? "onmicrosoft reference in DKIM record" : null], ["spf", spf.includes("spf.protection.outlook.com") ? "include:spf.protection.outlook.com" : null]]],
+    ["Amazon SES", [["dkim", recordsBlob.includes("amazonses.com") ? "amazonses reference in DKIM record" : null], ["spf", spf.includes("amazonses.com") ? "amazonses SPF include" : null]]],
+    ["SendGrid", [["dkim", recordsBlob.includes("sendgrid") ? "sendgrid marker in DKIM record" : null], ["spf", spf.includes("sendgrid.net") ? "sendgrid SPF include" : null]]],
+    ["Mailgun", [["dkim", recordsBlob.includes("mailgun.org") ? "mailgun marker in DKIM record" : null], ["spf", spf.includes("mailgun.org") ? "mailgun SPF include" : null]]]
+  ];
+
+  for (const [label, candidates] of rules) {
+    const matches = candidates.filter(([, value]) => Boolean(value));
+    if (!matches.length) {
+      continue;
+    }
+    inferences.push(makeInference(
+      label,
+      matches.length >= 2 ? 0.9 : 0.72,
+      matches.map(([source, value]) => evidence(source, String(value)))
+    ));
+  }
+
+  return mergeInferences(inferences);
+}
+
+function inferDnsProviders(nsRows) {
+  const inferences = [];
+  for (const ns of (nsRows ?? [])) {
+    const host = ns.toLowerCase();
+    if (host.includes("awsdns")) {
+      inferences.push(makeInference("Amazon Route 53", 0.89, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("cloudflare")) {
+      inferences.push(makeInference("Cloudflare DNS", 0.89, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("ultradns") || host.includes("udns")) {
+      inferences.push(makeInference("UltraDNS", 0.89, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("akam")) {
+      inferences.push(makeInference("Akamai DNS", 0.84, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("azure-dns")) {
+      inferences.push(makeInference("Azure DNS", 0.89, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("dnsmadeeasy")) {
+      inferences.push(makeInference("DNS Made Easy", 0.84, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("nsone") || host.includes("nsone.net")) {
+      inferences.push(makeInference("NS1", 0.84, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+    if (host.includes("gandi")) {
+      inferences.push(makeInference("Gandi DNS", 0.84, [evidence("nameserver", `matched "${ns}"`)]));
+    }
+  }
+  return mergeInferences(inferences);
 }
 
 async function collectWhois(domain) {
@@ -456,6 +858,7 @@ async function collectTls(domain) {
         const peer = socket.getPeerCertificate(true);
         const protocol = socket.getProtocol();
         const cipher = socket.getCipher();
+        const chain = buildCertificateChain(peer);
         socket.end();
 
         resolve({
@@ -468,7 +871,11 @@ async function collectTls(domain) {
             fingerprint256: peer.fingerprint256 ?? null,
             validFrom: peer.valid_from ?? null,
             validTo: peer.valid_to ?? null,
-            subjectAltNames: parseSubjectAltNames(peer.subjectaltname)
+            subjectAltNames: parseSubjectAltNames(peer.subjectaltname),
+            chain
+          },
+          raw: {
+            chain
           }
         });
       }
@@ -486,7 +893,11 @@ async function collectTls(domain) {
           fingerprint256: null,
           validFrom: null,
           validTo: null,
-          subjectAltNames: []
+          subjectAltNames: [],
+          chain: []
+        },
+        raw: {
+          chain: []
         }
       });
     });
@@ -504,11 +915,46 @@ async function collectTls(domain) {
           fingerprint256: null,
           validFrom: null,
           validTo: null,
-          subjectAltNames: []
+          subjectAltNames: [],
+          chain: []
+        },
+        raw: {
+          chain: []
         }
       });
     });
   });
+}
+
+function buildCertificateChain(peer) {
+  const chain = [];
+  const seen = new Set();
+  let current = peer;
+
+  while (current && typeof current === "object" && Object.keys(current).length) {
+    const fingerprint = current.fingerprint256 ?? `${current.subject?.CN ?? "unknown"}:${current.serialNumber ?? "n/a"}`;
+    if (seen.has(fingerprint)) {
+      break;
+    }
+    seen.add(fingerprint);
+
+    chain.push({
+      subjectCN: current.subject?.CN ?? null,
+      issuerCN: current.issuer?.CN ?? null,
+      serialNumber: current.serialNumber ?? null,
+      fingerprint256: current.fingerprint256 ?? null,
+      validFrom: current.valid_from ?? null,
+      validTo: current.valid_to ?? null,
+      selfSigned: current.subject?.CN && current.subject?.CN === current.issuer?.CN
+    });
+
+    if (!current.issuerCertificate || current.issuerCertificate === current) {
+      break;
+    }
+    current = current.issuerCertificate;
+  }
+
+  return chain;
 }
 
 function parseSubjectAltNames(subjectAltNameField) {
@@ -554,6 +1000,8 @@ async function collectHttp(domain) {
   const cors = summarizeCors(preferred.headers ?? {});
   const csp = analyzeCsp(preferred.headers?.["content-security-policy"] ?? null);
   const discovery = preferred.finalUrl ? await discoverWellKnown(preferred.finalUrl) : {};
+  const assetFingerprint = await buildAssetFingerprint(preferred.body ?? "", preferred.finalUrl ?? null);
+  const redirectHeaderDiffs = buildRedirectHeaderDiffs(preferred.redirectChain ?? []);
 
   return {
     cleaned: {
@@ -567,6 +1015,7 @@ async function collectHttp(domain) {
       securityHeaders,
       extractedHosts,
       scripts: extractScripts(preferred.body ?? ""),
+      assetFingerprint,
       clientHints: technologySignals.hints,
       technologyInferences: technologySignals.inferences,
       cookies: preferred.cookies ?? [],
@@ -574,9 +1023,16 @@ async function collectHttp(domain) {
       cors,
       csp,
       redirectChain: preferred.redirectChain ?? [],
+      redirectHeaderDiffs,
       discovery,
       availability,
       hosting
+    },
+    raw: {
+      checks: results.map(({ body, ...rest }) => rest),
+      redirectChain: preferred.redirectChain ?? [],
+      redirectHeaderDiffs,
+      assetFingerprint
     }
   };
 }
@@ -604,7 +1060,8 @@ async function fetchUrl(url) {
       redirectChain.push({
         url: currentUrl,
         status,
-        location: location ?? null
+        location: location ?? null,
+        headers
       });
 
       if (status >= 300 && status < 400 && location) {
@@ -831,6 +1288,159 @@ function extractScripts(html) {
   return [...new Set(matches)];
 }
 
+async function buildAssetFingerprint(html, effectiveUrl) {
+  const favicon = extractFaviconPath(html);
+  const iconLinks = [...html.matchAll(/<link[^>]+rel=["'][^"']*icon[^"']*["'][^>]+href=["']([^"']+)["']/gi)]
+    .map((match) => match[1].trim())
+    .slice(0, MAX_DISCOVERED_HOSTS);
+  const staticHints = [...html.matchAll(/\b(?:\/_next\/|\/wp-content\/|\/assets\/|\/static\/|\/dist\/)[^"'\s<>)]+/gi)]
+    .map((match) => match[0].trim())
+    .slice(0, MAX_DISCOVERED_HOSTS);
+  const hash = createHash("sha256").update(staticHints.join("|")).digest("hex").slice(0, 16);
+  const faviconDetails = effectiveUrl
+    ? await fetchFaviconFingerprint(effectiveUrl, favicon, iconLinks)
+    : {
+        faviconUrl: null,
+        faviconHash: null,
+        faviconStatus: null,
+        faviconError: null
+      };
+
+  return {
+    favicon,
+    iconLinks: [...new Set(iconLinks)],
+    staticHints: [...new Set(staticHints)],
+    staticHash: staticHints.length ? hash : null,
+    ...faviconDetails
+  };
+}
+
+async function fetchFaviconFingerprint(effectiveUrl, favicon, iconLinks) {
+  const base = new URL(effectiveUrl);
+  const candidates = [
+    favicon,
+    ...(iconLinks ?? []),
+    "/favicon.ico"
+  ]
+    .filter(Boolean)
+    .map((item) => {
+      try {
+        return new URL(item, base).toString();
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  for (const candidate of [...new Set(candidates)]) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(candidate, {
+        method: "GET",
+        redirect: "follow",
+        headers: { "user-agent": USER_AGENT },
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return {
+        faviconUrl: response.url,
+        faviconHash: createHash("sha256").update(buffer).digest("hex").slice(0, 24),
+        faviconStatus: response.status,
+        faviconError: null
+      };
+    } catch (error) {
+      return {
+        faviconUrl: candidate,
+        faviconHash: null,
+        faviconStatus: null,
+        faviconError: error.message
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return {
+    faviconUrl: null,
+    faviconHash: null,
+    faviconStatus: null,
+    faviconError: null
+  };
+}
+
+function buildRedirectHeaderDiffs(chain) {
+  if (!chain?.length) {
+    return [];
+  }
+
+  const diffs = [];
+  for (let index = 0; index < chain.length; index += 1) {
+    const current = chain[index];
+    const previous = chain[index - 1];
+    const diff = diffHeaders(previous?.headers ?? {}, current.headers ?? {});
+    diffs.push({
+      hop: index + 1,
+      url: current.url,
+      status: current.status,
+      location: current.location ?? null,
+      summary: summarizeHeaderDiff(diff),
+      ...diff
+    });
+  }
+
+  return diffs;
+}
+
+function diffHeaders(previousHeaders, currentHeaders) {
+  const previousKeys = new Set(Object.keys(previousHeaders ?? {}));
+  const currentKeys = new Set(Object.keys(currentHeaders ?? {}));
+  const added = [];
+  const removed = [];
+  const changed = [];
+
+  for (const key of currentKeys) {
+    if (!previousKeys.has(key)) {
+      added.push({ key, value: currentHeaders[key] });
+    } else if (previousHeaders[key] !== currentHeaders[key]) {
+      changed.push({ key, from: previousHeaders[key], to: currentHeaders[key] });
+    }
+  }
+
+  for (const key of previousKeys) {
+    if (!currentKeys.has(key)) {
+      removed.push({ key, value: previousHeaders[key] });
+    }
+  }
+
+  return { added, removed, changed };
+}
+
+function summarizeHeaderDiff(diff) {
+  const parts = [];
+  if (diff.added.length) {
+    parts.push(`added ${diff.added.map((entry) => entry.key).join(", ")}`);
+  }
+  if (diff.changed.length) {
+    parts.push(`changed ${diff.changed.map((entry) => entry.key).join(", ")}`);
+  }
+  if (diff.removed.length) {
+    parts.push(`removed ${diff.removed.map((entry) => entry.key).join(", ")}`);
+  }
+  return parts.length ? parts.join(" | ") : "no header changes";
+}
+
+function extractFaviconPath(html) {
+  const match = html.match(/<link[^>]+rel=["'][^"']*icon[^"']*["'][^>]+href=["']([^"']+)["']/i);
+  return match ? match[1].trim() : null;
+}
+
 function extractClientHints(html, headers) {
   const hints = [];
   const inferences = [];
@@ -1002,8 +1612,32 @@ function buildFootprint(domain, dnsInfo, tlsInfo, httpInfo, whoisInfo) {
     nameservers,
     mail,
     webStackHosts: dedupedHosts,
-    relatedDomains: []
+    relatedDomains: deriveRelatedDomains(domain, {
+      hosts: dedupedHosts,
+      nameservers,
+      mail,
+      certificateNames: tlsInfo.subjectAltNames ?? []
+    })
   };
+}
+
+function deriveRelatedDomains(targetDomain, inputs) {
+  const targetRoot = registrableGuess(targetDomain) ?? targetDomain;
+  const related = new Set();
+
+  for (const host of [
+    ...(inputs.hosts ?? []),
+    ...(inputs.nameservers ?? []),
+    ...(inputs.mail ?? []),
+    ...(inputs.certificateNames ?? [])
+  ]) {
+    const root = registrableGuess(host);
+    if (root && root !== targetRoot) {
+      related.add(root);
+    }
+  }
+
+  return [...related].slice(0, MAX_DISCOVERED_HOSTS);
 }
 
 function registrableGuess(hostname) {
@@ -1061,6 +1695,7 @@ function buildFindings(report) {
   }
 
   const spf = report.dns.txt.spf;
+  const spfAnalysis = report.dns.txt.spfAnalysis ?? {};
   const dmarc = report.dns.txt.dmarc;
   if (txtAvailable && !spf) {
     findings.push({
@@ -1076,6 +1711,83 @@ function buildFindings(report) {
       category: "email-security",
       title: "Missing DMARC",
       description: "No DMARC TXT record was found for the apex domain."
+    });
+  }
+
+  const dmarcAnalysis = report.dns.txt.dmarcAnalysis ?? {};
+  if (dmarcAnalysis.flags?.includes("monitoring-only")) {
+    findings.push({
+      severity: "medium",
+      category: "email-security",
+      title: "DMARC is monitoring-only",
+      description: "The DMARC policy is set to p=none, so it reports but does not enforce against spoofing."
+    });
+  }
+  if (dmarcAnalysis.present && dmarcAnalysis.flags?.includes("missing-aggregate-reporting")) {
+    findings.push({
+      severity: "low",
+      category: "email-security",
+      title: "DMARC aggregate reporting is not configured",
+      description: "The DMARC record does not declare any rua destinations."
+    });
+  }
+
+  const mtaStsAnalysis = report.dns.txt.mtaStsAnalysis ?? {};
+  if (!mtaStsAnalysis.present && (report.dns.mx ?? []).length > 0) {
+    findings.push({
+      severity: "low",
+      category: "email-security",
+      title: "MTA-STS not detected",
+      description: "Mail exchangers were observed, but no _mta-sts TXT policy was found."
+    });
+  }
+
+  const tlsRptAnalysis = report.dns.txt.tlsRptAnalysis ?? {};
+  if (!tlsRptAnalysis.present && (report.dns.mx ?? []).length > 0) {
+    findings.push({
+      severity: "low",
+      category: "email-security",
+      title: "SMTP TLS reporting not detected",
+      description: "Mail exchangers were observed, but no _smtp._tls TLS-RPT record was found."
+    });
+  }
+
+  if ((report.dns.dkim?.discovered ?? []).length === 0 && (report.dns.mx ?? []).length > 0) {
+    findings.push({
+      severity: "low",
+      category: "email-security",
+      title: "No common DKIM selectors detected",
+      description: "The scanner checked common DKIM selectors but did not discover a DKIM1 record."
+    });
+  }
+
+  if (spfAnalysis.flags?.includes("allow-all")) {
+    findings.push({
+      severity: "high",
+      category: "email-security",
+      title: "SPF allows all senders",
+      description: "The SPF record contains +all, which effectively authorizes any sender."
+    });
+  } else if (spfAnalysis.flags?.includes("neutral-all")) {
+    findings.push({
+      severity: "medium",
+      category: "email-security",
+      title: "SPF uses neutral all",
+      description: "The SPF record ends in ?all, which does not provide strong enforcement guidance."
+    });
+  } else if (spfAnalysis.flags?.includes("lookup-limit-risk")) {
+    findings.push({
+      severity: "medium",
+      category: "email-security",
+      title: "SPF may exceed DNS lookup guidance",
+      description: `The SPF record appears to require about ${spfAnalysis.lookupCount} DNS-driven mechanisms, which risks evaluation failures.`
+    });
+  } else if (spfAnalysis.flags?.includes("lookup-pressure")) {
+    findings.push({
+      severity: "low",
+      category: "email-security",
+      title: "SPF is lookup-heavy",
+      description: `The SPF record appears to require about ${spfAnalysis.lookupCount} DNS-driven mechanisms.`
     });
   }
 
@@ -1221,6 +1933,26 @@ function buildFindings(report) {
     });
   }
 
+  const certificateClusters = report.relationships?.certificateClusters ?? [];
+  if (certificateClusters.length > 1) {
+    findings.push({
+      severity: "low",
+      category: "shared-infrastructure",
+      title: "Certificate spans multiple registrable domains",
+      description: `Certificate SAN coverage crosses multiple registrable domains: ${certificateClusters.map((entry) => `${entry.domain} (${entry.count})`).join(", ")}.`
+    });
+  }
+
+  const mailProviders = report.email?.providerInferences ?? [];
+  if ((report.dns.mx ?? []).length > 0 && !mailProviders.length && !report.dns.txt?.spf) {
+    findings.push({
+      severity: "low",
+      category: "email-security",
+      title: "Mail stack attribution is limited",
+      description: "MX records were observed, but there was not enough SPF or DKIM evidence to confidently attribute the mail platform."
+    });
+  }
+
   return findings;
 }
 
@@ -1274,7 +2006,10 @@ function buildListsView(report) {
     hosts: report.footprint.webStackHosts,
     ips: report.footprint.ips,
     nameservers: report.footprint.nameservers,
+    nameServerProviders: report.dns.nsProviderHints ?? [],
     mailServers: report.footprint.mail,
+    mailProviders: report.dns.mxProviderHints ?? [],
+    dkimSelectors: (report.dns.dkim?.discovered ?? []).map((entry) => entry.selector),
     certificateNames: report.tls.subjectAltNames ?? []
   };
 }
@@ -1329,7 +2064,9 @@ function buildWebsiteView(report) {
     technologies: inferenceLabels(technologyInferences),
     technologyInferences,
     thirdPartyHosts: report.javascript?.thirdPartyHosts ?? [],
-    redirectChain: report.http.redirectChain ?? []
+    redirectChain: report.http.redirectChain ?? [],
+    redirectHeaderDiffs: report.http.redirectHeaderDiffs ?? [],
+    assetFingerprint: report.http.assetFingerprint ?? {}
   };
 }
 
@@ -1378,6 +2115,41 @@ function buildDeliveryView(report) {
     reverseProxy: report.http.headers?.via ?? null,
     serverStack: report.http.hosting?.stack ?? [],
     indicators: report.http.hosting?.indicators ?? []
+  };
+}
+
+function buildEmailView(report) {
+  return {
+    mx: report.dns.mx ?? [],
+    mxProviders: report.dns.mxProviderHints ?? [],
+    mxProviderInferences: report.dns.mxProviderInferences ?? [],
+    spf: {
+      record: report.dns.txt?.spf ?? null,
+      analysis: report.dns.txt?.spfAnalysis ?? {}
+    },
+    dmarc: {
+      record: report.dns.txt?.dmarc ?? null,
+      analysis: report.dns.txt?.dmarcAnalysis ?? {}
+    },
+    dkim: report.dns.dkim ?? { checkedSelectors: [], discovered: [] },
+    mtaSts: {
+      record: report.dns.txt?.mtaSts ?? null,
+      analysis: report.dns.txt?.mtaStsAnalysis ?? {}
+    },
+    tlsRpt: {
+      record: report.dns.txt?.tlsRpt ?? null,
+      analysis: report.dns.txt?.tlsRptAnalysis ?? {}
+    },
+    bimi: {
+      record: report.dns.txt?.bimi ?? null,
+      analysis: report.dns.txt?.bimiAnalysis ?? {}
+    },
+    dnsProviders: report.dns.nsProviderHints ?? [],
+    dnsProviderInferences: report.dns.nsProviderInferences ?? [],
+    providerInferences: mergeInferences([
+      ...(report.dns.mxProviderInferences ?? []),
+      ...(report.dns.dkim?.providerInferences ?? [])
+    ])
   };
 }
 
@@ -1471,8 +2243,18 @@ function buildDiscoveryView(report) {
   return {
     securityTxt,
     robotsTxt: report.http.discovery?.["/robots.txt"] ?? null,
-    sitemapXml: report.http.discovery?.["/sitemap.xml"] ?? null
+    sitemapXml: report.http.discovery?.["/sitemap.xml"] ?? null,
+    securityTxtPreview: securityTxt?.preview ?? null
   };
+}
+
+function buildCertificateClusters(report) {
+  const domains = (report.tls.subjectAltNames ?? []).map(registrableGuess).filter(Boolean);
+  const grouped = new Map();
+  for (const domain of domains) {
+    grouped.set(domain, (grouped.get(domain) ?? 0) + 1);
+  }
+  return [...grouped.entries()].map(([domain, count]) => ({ domain, count }));
 }
 
 function buildOwnershipView(report) {
@@ -1487,14 +2269,63 @@ function buildOwnershipView(report) {
   };
 }
 
-function buildRelationshipsView() {
+function buildRelationshipsView(report) {
+  const sharedClusters = buildObservedInfrastructureClusters(report);
   return {
     whoisLinkedDomains: {
       status: "coming-soon",
       rationale: "Reverse WHOIS expansion requires a comparison corpus or external index. The local scanner currently fingerprints ownership data only.",
       candidates: []
-    }
+    },
+    observedInfrastructure: {
+      status: sharedClusters.length ? "observed" : "none",
+      rationale: sharedClusters.length
+        ? "Clusters are derived from certificate SANs, observed hosts, MX targets, and nameservers seen during passive collection."
+        : "No cross-domain infrastructure clusters were derived from the passive evidence that was collected.",
+      clusters: sharedClusters
+    },
+    certificateClusters: buildCertificateClusters(report)
   };
+}
+
+function buildObservedInfrastructureClusters(report) {
+  const targetRoot = registrableGuess(report.target) ?? report.target;
+  const grouped = new Map();
+  const sources = [
+    ["certificate-san", report.tls.subjectAltNames ?? []],
+    ["observed-host", report.footprint.webStackHosts ?? []],
+    ["mail-exchanger", report.footprint.mail ?? []],
+    ["nameserver", report.footprint.nameservers ?? []]
+  ];
+
+  for (const [source, values] of sources) {
+    for (const value of values) {
+      const domain = registrableGuess(value);
+      if (!domain || domain === targetRoot) {
+        continue;
+      }
+
+      const existing = grouped.get(domain) ?? {
+        domain,
+        count: 0,
+        sources: new Set(),
+        samples: new Set()
+      };
+      existing.count += 1;
+      existing.sources.add(source);
+      existing.samples.add(value);
+      grouped.set(domain, existing);
+    }
+  }
+
+  return [...grouped.values()]
+    .map((entry) => ({
+      domain: entry.domain,
+      count: entry.count,
+      sources: [...entry.sources],
+      samples: [...entry.samples].slice(0, 4)
+    }))
+    .sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain));
 }
 
 main().catch((error) => {

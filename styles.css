@@ -287,6 +287,30 @@ button:hover {
 
 .finding-list {
   display: grid;
+  gap: 0;
+}
+
+.finding-group {
+  border-bottom: 1px solid var(--line);
+}
+
+.finding-group:last-child {
+  border-bottom: 0;
+}
+
+.finding-group-head {
+  padding: 12px 18px;
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  background: rgba(77, 177, 255, 0.06);
+  border-bottom: 1px solid var(--line);
+}
+
+.finding-group-items {
+  display: grid;
 }
 
 .item {
@@ -311,6 +335,88 @@ button:hover {
 .item span {
   color: var(--muted);
   line-height: 1.58;
+}
+
+.inference-list {
+  display: grid;
+  gap: 10px;
+}
+
+.inference-block {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: rgba(19, 35, 53, 0.45);
+}
+
+.inference-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.inference-label {
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  color: var(--ink-strong);
+}
+
+.inference-confidence {
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  color: var(--accent);
+}
+
+.inference-evidence {
+  display: grid;
+  gap: 4px;
+}
+
+.inference-source {
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.inference-detail {
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.raw-grid {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+
+.raw-block {
+  display: grid;
+  gap: 10px;
+}
+
+.raw-block h3 {
+  margin: 0;
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.raw-pre {
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: rgba(7, 17, 29, 0.82);
+  color: var(--ink);
+  font-family: "IBM Plex Mono", "SF Mono", monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .severity-high {

@@ -67,20 +67,29 @@
             <section class="panel panel-findings">
               <div class="panel-head">
                 <h2>Findings</h2>
-                <div class="panel-subtitle">Prioritized issues surfaced by the current collection pass.</div>
+                <div class="panel-subtitle">Grouped by investigation area so email, transport, infrastructure, and exposure issues are easier to triage.</div>
               </div>
               <div id="findingsList" class="finding-list"></div>
             </section>
 
             <section class="panel">
               <div class="panel-head">
-                <h2>Web Overview</h2>
-                <div class="panel-subtitle">Destination, redirect behavior, runtime clues, and delivery stack.</div>
+                <h2>Observed HTTP Behavior</h2>
+                <div class="panel-subtitle">Observed destination, redirect path, runtime clues, and delivery stack.</div>
               </div>
               <div id="pageList" class="rows"></div>
               <div id="webStackList" class="rows rows-subsection"></div>
               <div id="hostingList" class="rows rows-subsection"></div>
               <div id="javascriptList" class="rows rows-subsection"></div>
+              <div id="assetList" class="rows rows-subsection"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Email Intelligence</h2>
+                <div class="panel-subtitle">Observed mail routing, authentication, transport policies, and branding signals.</div>
+              </div>
+              <div id="emailList" class="rows"></div>
             </section>
 
             <section class="panel">
@@ -91,6 +100,35 @@
               <div id="networkList" class="rows"></div>
               <div id="ipList" class="rows rows-subsection"></div>
               <div id="tlsList" class="rows rows-subsection"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Raw Evidence</h2>
+                <div class="panel-subtitle">Underlying records and resolver output for deeper inspection.</div>
+              </div>
+              <div class="raw-grid">
+                <section class="raw-block">
+                  <h3>WHOIS Record</h3>
+                  <pre id="rawWhois" class="raw-pre">No data loaded.</pre>
+                </section>
+                <section class="raw-block">
+                  <h3>DNS Lookup Detail</h3>
+                  <pre id="rawDns" class="raw-pre">No data loaded.</pre>
+                </section>
+                <section class="raw-block">
+                  <h3>IP Lookup Detail</h3>
+                  <pre id="rawIp" class="raw-pre">No data loaded.</pre>
+                </section>
+                <section class="raw-block">
+                  <h3>HTTP Trace</h3>
+                  <pre id="rawHttp" class="raw-pre">No data loaded.</pre>
+                </section>
+                <section class="raw-block">
+                  <h3>TLS Chain Detail</h3>
+                  <pre id="rawTls" class="raw-pre">No data loaded.</pre>
+                </section>
+              </div>
             </section>
           </div>
 
@@ -110,6 +148,7 @@
                 <div class="panel-subtitle">Registrar, registrant, and relatedness fingerprints.</div>
               </div>
               <div id="ownershipList" class="rows"></div>
+              <div id="relationshipList" class="stack stack-subsection"></div>
               <div id="whoisLinkedList" class="stack stack-subsection"></div>
             </section>
           </aside>
