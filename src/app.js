@@ -39,12 +39,12 @@ function renderReport(report) {
   renderRows("#pageList", [
     row("Apex domain", report.page?.apexDomain),
     row("Effective URL", report.page?.effectiveUrl),
+    row("Page title", report.page?.title),
     row("HTTP status", report.page?.httpStatus),
     row("Redirected", yesNo(report.page?.redirected)),
     row("Redirect path", formatRedirectChain(report.page?.redirectChain)),
     row("Redirect header diffs", formatRedirectHeaderDiffs(report.website?.redirectHeaderDiffs)),
-    row("Page title", report.page?.title),
-    row("Redirect hops", report.page?.redirectChain?.length ?? 0),
+    row("Redirect hops", report.page?.redirectCount ?? 0),
     row("security.txt", formatDiscovery(report.discovery?.securityTxt)),
     row("security.txt preview", report.discovery?.securityTxtPreview),
     row("robots.txt", formatDiscovery(report.discovery?.robotsTxt)),
@@ -121,7 +121,16 @@ function renderReport(report) {
     row("Name server providers", listOrFallback(report.dns.nsProviderHints)),
     row("MX", listOrFallback(report.lists?.mailServers)),
     row("CAA", formatCaa(report.dns.caa)),
+    row("TXT vendors", listOrFallback(report.discovery?.txtObservations?.vendorHints)),
+    row("TXT verification records", formatTxtVerificationRecords(report.discovery?.txtObservations?.verificationRecords)),
+    row("Opaque TXT tokens", report.discovery?.txtObservations?.opaqueCount),
     row("TXT verifications", listOrFallback(report.dns.txt?.verifications))
+  ]);
+
+  renderRows("#txtList", [
+    row("TXT service buckets", formatTxtBuckets(report.discovery?.txtObservations?.buckets)),
+    row("TXT record count", report.discovery?.txtObservations?.total),
+    row("TXT vendor count", report.discovery?.txtObservations?.vendorHints?.length ?? 0)
   ]);
 
   renderRows("#ipList", [
@@ -146,9 +155,11 @@ function renderReport(report) {
     row("Valid to", report.tls.validTo),
     row("Serial", report.tls.serialNumber),
     row("SHA-256 fingerprint", report.tls.fingerprint256),
+    row("Primary certificate host", report.tls.hostname),
     row("Certificate SANs", listOrFallback(report.lists?.certificateNames)),
     row("Certificate clusters", formatCertificateClusters(report)),
-    row("Certificate chain", formatCertificateChain(report.tls?.chain))
+    row("Certificate chain", formatCertificateChain(report.tls?.chain)),
+    row("Observed certificates", formatTlsEntries(report.tls?.entries))
   ]);
 
   renderRows("#ownershipList", [
@@ -254,7 +265,7 @@ function renderRawEvidence(report) {
   text("#rawDns", prettyJson(report.raw?.dns));
   text("#rawIp", prettyJson(report.ip?.entries ?? []));
   text("#rawHttp", prettyJson(report.raw?.http));
-  text("#rawTls", prettyJson(report.raw?.tls));
+  text("#rawTls", prettyJson(report.raw?.tls ?? report.tls?.entries ?? []));
 }
 
 function buildTargetMeta(report) {
@@ -373,6 +384,10 @@ function formatRedirectChain(chain) {
     return "No redirect chain captured";
   }
 
+  if (!chain.some((hop) => hop.location)) {
+    return "No redirects observed";
+  }
+
   return chain.map((hop) => {
     const destination = hop.location ? ` -> ${hop.location}` : "";
     return `${hop.status} ${hop.url}${destination}`;
@@ -434,7 +449,12 @@ function formatRedirectHeaderDiffs(entries) {
     return "No header diffs captured";
   }
 
-  return entries.map((entry) => `hop ${entry.hop}: ${entry.summary}`).join(" | ");
+  const redirectDiffs = entries.filter((entry) => entry.location || entry.summary !== "no header changes");
+  if (!redirectDiffs.length) {
+    return "No redirect header diffs captured";
+  }
+
+  return redirectDiffs.map((entry) => `hop ${entry.hop}: ${entry.summary}`).join(" | ");
 }
 
 function formatCertificateClusters(report) {
@@ -454,6 +474,37 @@ function formatCertificateChain(entries) {
   return entries.map((entry, index) =>
     `${index + 1}. ${entry.subjectCN || "Unknown subject"} -> ${entry.issuerCN || "Unknown issuer"} (${entry.validTo || "n/a"})`
   ).join(" | ");
+}
+
+function formatTlsEntries(entries) {
+  if (!entries?.length) {
+    return "No certificates captured";
+  }
+
+  return entries
+    .map((entry) => `${entry.hostname || "unknown"}: ${entry.subject?.CN || entry.subjectCN || "Unknown subject"} -> ${entry.issuer?.CN || entry.issuerCN || "Unknown issuer"}`)
+    .join(" | ");
+}
+
+function formatTxtVerificationRecords(entries) {
+  if (!entries?.length) {
+    return "None detected";
+  }
+
+  return entries
+    .slice(0, 8)
+    .map((entry) => `${entry.service}: ${entry.record}`)
+    .join(" | ");
+}
+
+function formatTxtBuckets(entries) {
+  if (!entries?.length) {
+    return "None detected";
+  }
+
+  return entries
+    .map((entry) => `${entry.bucket}: ${entry.services.join(", ")}`)
+    .join(" | ");
 }
 
 function findingBucket(finding) {

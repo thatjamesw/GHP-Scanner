@@ -92,24 +92,40 @@ async function main() {
     raw: {}
   };
 
-  const [dnsInfo, whoisInfo, tlsInfo, httpInfo] = await Promise.all([
+  const [dnsInfo, whoisInfo, apexTlsInfo, httpInfo] = await Promise.all([
     collectDns(domain),
     collectWhois(domain),
     collectTls(domain),
     collectHttp(domain)
   ]);
 
+  const tlsEntries = [{
+    hostname: domain,
+    cleaned: apexTlsInfo.cleaned,
+    raw: apexTlsInfo.raw
+  }];
+  const effectiveHostname = extractHostname(httpInfo.cleaned.effectiveUrl);
+  if (effectiveHostname && effectiveHostname !== domain) {
+    const effectiveTlsInfo = await collectTls(effectiveHostname);
+    tlsEntries.push({
+      hostname: effectiveHostname,
+      cleaned: effectiveTlsInfo.cleaned,
+      raw: effectiveTlsInfo.raw
+    });
+  }
+  const primaryTls = selectPrimaryTlsEntry(tlsEntries, effectiveHostname);
+
   report.dns = dnsInfo.cleaned;
   report.raw.dns = dnsInfo.raw;
   report.whois = whoisInfo.cleaned;
   report.raw.whois = whoisInfo.raw;
-  report.tls = tlsInfo.cleaned;
-  report.raw.tls = tlsInfo.raw;
+  report.tls = buildTlsView(primaryTls, tlsEntries);
+  report.raw.tls = buildRawTlsView(primaryTls, tlsEntries);
   report.http = httpInfo.cleaned;
   report.raw.http = httpInfo.raw;
   report.ip = await collectIpIntelligence([...new Set([...(dnsInfo.cleaned.a ?? []), ...(dnsInfo.cleaned.aaaa ?? [])])]);
 
-  report.footprint = buildFootprint(domain, dnsInfo.cleaned, tlsInfo.cleaned, httpInfo.cleaned, whoisInfo.cleaned);
+  report.footprint = buildFootprint(domain, report.tls, httpInfo.cleaned, whoisInfo.cleaned, dnsInfo.cleaned);
   report.page = buildPageView(report);
   report.lists = buildListsView(report);
   report.webstack = buildWebstackView(report);
@@ -201,6 +217,7 @@ async function collectDns(domain) {
       result.cleaned.availability.dns = true;
       if (type === "TXT") {
         result.cleaned.availability.txt = true;
+        result.cleaned.txt.observations = analyzeTxtRecords(value);
         for (const row of value) {
           const joined = row.join("");
           if (joined.startsWith("v=spf1")) {
@@ -306,6 +323,90 @@ async function collectDns(domain) {
   result.cleaned.dkim.providerInferences = inferDkimProviders(result.cleaned.dkim.discovered ?? [], result.cleaned.txt.spf ?? null);
 
   return result;
+}
+
+function analyzeTxtRecords(rows) {
+  const records = (rows ?? []).map((row) => row.join("").trim()).filter(Boolean);
+  const verificationRecords = [];
+  const vendorHints = new Set();
+  const grouped = new Map();
+  let opaqueCount = 0;
+
+  const knownVerificationPatterns = [
+    ["Atlassian", /^atlassian-domain-verification=/i],
+    ["Adobe", /^adobe-idp-site-verification=/i],
+    ["Access", /^access-domain-verification=/i],
+    ["Pardot", /^pardot\d+=/i],
+    ["GlobalSign", /^_?globalsign-domain-verification=/i],
+    ["Notion", /^notion-domain-verification=/i],
+    ["Google Search Console", /^google-site-verification=/i],
+    ["Google Workspace Recovery", /^google-gws-recovery-domain-verification=/i],
+    ["PlayPlay", /^play-play-domain-verification-/i],
+    ["Sitecore", /^sitecore-domain-verification=/i],
+    ["TeamViewer", /^teamviewer-sso-verification=/i],
+    ["OpenAI", /^openai-domain-verification=/i],
+    ["Autodesk", /^autodesk-domain-verification=/i],
+    ["DocuSign", /^docusign=/i],
+    ["Microsoft", /^MS=ms\d+/i]
+  ];
+
+  for (const record of records) {
+    if (/^v=spf1/i.test(record) || /^v=dmarc1/i.test(record)) {
+      continue;
+    }
+
+    const matched = knownVerificationPatterns.find(([, pattern]) => pattern.test(record));
+    if (matched) {
+      const service = matched[0];
+      const bucket = txtServiceBucket(service);
+      verificationRecords.push({ service, bucket, record });
+      vendorHints.add(service);
+      const items = grouped.get(bucket) ?? [];
+      items.push(service);
+      grouped.set(bucket, items);
+      continue;
+    }
+
+    if (/^[a-z0-9_.-]+=.+/i.test(record)) {
+      verificationRecords.push({ service: "Unknown keyed TXT", record });
+      continue;
+    }
+
+    opaqueCount += 1;
+  }
+
+  return {
+    total: records.length,
+    verificationRecords,
+    vendorHints: [...vendorHints],
+    buckets: [...grouped.entries()].map(([bucket, services]) => ({
+      bucket,
+      services: [...new Set(services)].sort()
+    })),
+    opaqueCount
+  };
+}
+
+function txtServiceBucket(service) {
+  const mapping = {
+    "Google Search Console": "Identity & Verification",
+    "Google Workspace Recovery": "Identity & Verification",
+    "Atlassian": "Collaboration & SaaS",
+    "Adobe": "Marketing & Experience",
+    "Pardot": "Marketing & CRM",
+    "Notion": "Collaboration & SaaS",
+    "Sitecore": "Web & CMS",
+    "PlayPlay": "Marketing & Experience",
+    "TeamViewer": "Enterprise IT",
+    "OpenAI": "AI & Automation",
+    "Autodesk": "Enterprise IT",
+    "Access": "Identity & Verification",
+    "Microsoft": "Enterprise IT",
+    "GlobalSign": "Trust & PKI",
+    "DocuSign": "Trust & PKI"
+  };
+
+  return mapping[service] ?? "Other TXT Services";
 }
 
 async function collectCommonDkim(domain, rawDns, context = {}) {
@@ -926,6 +1027,46 @@ async function collectTls(domain) {
   });
 }
 
+function extractHostname(url) {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function selectPrimaryTlsEntry(entries, effectiveHostname) {
+  return entries.find((entry) => entry.hostname === effectiveHostname && !entry.cleaned?.error)
+    ?? entries.find((entry) => !entry.cleaned?.error)
+    ?? entries[0];
+}
+
+function buildTlsView(primaryEntry, entries) {
+  const primary = primaryEntry?.cleaned ?? {};
+  return {
+    ...primary,
+    hostname: primaryEntry?.hostname ?? null,
+    entries: entries.map((entry) => ({
+      hostname: entry.hostname,
+      ...entry.cleaned
+    }))
+  };
+}
+
+function buildRawTlsView(primaryEntry, entries) {
+  return {
+    primaryHost: primaryEntry?.hostname ?? null,
+    entries: entries.map((entry) => ({
+      hostname: entry.hostname,
+      ...(entry.raw ?? {})
+    }))
+  };
+}
+
 function buildCertificateChain(peer) {
   const chain = [];
   const seen = new Set();
@@ -989,6 +1130,7 @@ async function collectHttp(domain) {
   }
 
   const preferred = results.find((item) => item.finalUrl) ?? results[0] ?? {};
+  const observedNavigation = selectObservedNavigation(results, preferred);
   const securityHeaders = preferred.headers ? summarizeSecurityHeaders(preferred.headers) : {};
   const extractedHosts = extractHostsFromBody(domain, preferred.body ?? "");
   const availability = {
@@ -1001,14 +1143,14 @@ async function collectHttp(domain) {
   const csp = analyzeCsp(preferred.headers?.["content-security-policy"] ?? null);
   const discovery = preferred.finalUrl ? await discoverWellKnown(preferred.finalUrl) : {};
   const assetFingerprint = await buildAssetFingerprint(preferred.body ?? "", preferred.finalUrl ?? null);
-  const redirectHeaderDiffs = buildRedirectHeaderDiffs(preferred.redirectChain ?? []);
+  const redirectHeaderDiffs = buildRedirectHeaderDiffs(observedNavigation.redirectChain ?? []);
 
   return {
     cleaned: {
       checks: results.map(({ body, ...rest }) => rest),
       status: preferred.status ?? null,
       ok: preferred.ok ?? false,
-      redirected: Boolean(preferred.finalUrl && preferred.finalUrl !== preferred.url),
+      redirected: observedNavigation.redirected,
       effectiveUrl: preferred.finalUrl ?? null,
       title: extractTitle(preferred.body ?? ""),
       headers: preferred.headers ?? {},
@@ -1022,7 +1164,8 @@ async function collectHttp(domain) {
       cookiePosture,
       cors,
       csp,
-      redirectChain: preferred.redirectChain ?? [],
+      redirectChain: observedNavigation.redirectChain ?? [],
+      redirectCount: observedNavigation.redirectCount,
       redirectHeaderDiffs,
       discovery,
       availability,
@@ -1030,11 +1173,41 @@ async function collectHttp(domain) {
     },
     raw: {
       checks: results.map(({ body, ...rest }) => rest),
-      redirectChain: preferred.redirectChain ?? [],
+      redirectChain: observedNavigation.redirectChain ?? [],
       redirectHeaderDiffs,
       assetFingerprint
     }
   };
+}
+
+function selectObservedNavigation(results, preferred) {
+  const successful = (results ?? []).filter((item) => item?.finalUrl);
+  if (!successful.length) {
+    return {
+      redirected: false,
+      redirectCount: 0,
+      redirectChain: preferred?.redirectChain ?? []
+    };
+  }
+
+  const ranked = [...successful].sort((left, right) => {
+    const leftCount = countRedirects(left.redirectChain ?? []);
+    const rightCount = countRedirects(right.redirectChain ?? []);
+    if (rightCount !== leftCount) {
+      return rightCount - leftCount;
+    }
+    return (right.redirectChain?.length ?? 0) - (left.redirectChain?.length ?? 0);
+  });
+  const best = ranked[0];
+  return {
+    redirected: successful.some((item) => countRedirects(item.redirectChain ?? []) > 0),
+    redirectCount: countRedirects(best.redirectChain ?? []),
+    redirectChain: best.redirectChain ?? []
+  };
+}
+
+function countRedirects(chain) {
+  return (chain ?? []).filter((entry) => Boolean(entry.location)).length;
 }
 
 async function fetchUrl(url) {
@@ -1592,7 +1765,7 @@ function inferServerStack(headers) {
   return mergeInferences(stack);
 }
 
-function buildFootprint(domain, dnsInfo, tlsInfo, httpInfo, whoisInfo) {
+function buildFootprint(domain, tlsInfo, httpInfo, whoisInfo, dnsInfo) {
   const ips = [...new Set([...(dnsInfo.a ?? []), ...(dnsInfo.aaaa ?? [])])];
   const nameservers = [...new Set([...(dnsInfo.ns ?? []), ...((whoisInfo.nameServers ?? []))])];
   const mail = [...new Set((dnsInfo.mx ?? []).map((row) => row.exchange))];
@@ -1616,7 +1789,7 @@ function buildFootprint(domain, dnsInfo, tlsInfo, httpInfo, whoisInfo) {
       hosts: dedupedHosts,
       nameservers,
       mail,
-      certificateNames: tlsInfo.subjectAltNames ?? []
+      certificateNames: flattenTlsSubjectAltNames(tlsInfo)
     })
   };
 }
@@ -1988,6 +2161,7 @@ function buildPageView(report) {
     httpStatus: report.http.status ?? null,
     title: report.http.title ?? null,
     redirected: report.http.redirected ?? false,
+    redirectCount: report.http.redirectCount ?? 0,
     primaryIPs: report.footprint.ips,
     server: report.http.headers?.server ?? null,
     tlsIssuer: report.tls.issuer?.CN ?? null,
@@ -2000,7 +2174,7 @@ function buildListsView(report) {
   return {
     domains: [...new Set([
       report.target,
-      ...(report.tls.subjectAltNames ?? []).map(registrableGuess).filter(Boolean),
+      ...flattenTlsSubjectAltNames(report.tls).map(registrableGuess).filter(Boolean),
       ...(report.http.extractedHosts ?? []).map(registrableGuess).filter(Boolean)
     ])],
     hosts: report.footprint.webStackHosts,
@@ -2010,7 +2184,7 @@ function buildListsView(report) {
     mailServers: report.footprint.mail,
     mailProviders: report.dns.mxProviderHints ?? [],
     dkimSelectors: (report.dns.dkim?.discovered ?? []).map((entry) => entry.selector),
-    certificateNames: report.tls.subjectAltNames ?? []
+    certificateNames: flattenTlsSubjectAltNames(report.tls)
   };
 }
 
@@ -2244,17 +2418,32 @@ function buildDiscoveryView(report) {
     securityTxt,
     robotsTxt: report.http.discovery?.["/robots.txt"] ?? null,
     sitemapXml: report.http.discovery?.["/sitemap.xml"] ?? null,
-    securityTxtPreview: securityTxt?.preview ?? null
+    securityTxtPreview: securityTxt?.preview ?? null,
+    txtObservations: report.dns.txt?.observations ?? {
+      total: 0,
+      verificationRecords: [],
+      vendorHints: [],
+      buckets: [],
+      opaqueCount: 0
+    }
   };
 }
 
 function buildCertificateClusters(report) {
-  const domains = (report.tls.subjectAltNames ?? []).map(registrableGuess).filter(Boolean);
+  const domains = flattenTlsSubjectAltNames(report.tls).map(registrableGuess).filter(Boolean);
   const grouped = new Map();
   for (const domain of domains) {
     grouped.set(domain, (grouped.get(domain) ?? 0) + 1);
   }
   return [...grouped.entries()].map(([domain, count]) => ({ domain, count }));
+}
+
+function flattenTlsSubjectAltNames(tlsView) {
+  return [...new Set(
+    (tlsView?.entries ?? [])
+      .flatMap((entry) => entry.subjectAltNames ?? [])
+      .concat(tlsView?.subjectAltNames ?? [])
+  )];
 }
 
 function buildOwnershipView(report) {
@@ -2292,7 +2481,7 @@ function buildObservedInfrastructureClusters(report) {
   const targetRoot = registrableGuess(report.target) ?? report.target;
   const grouped = new Map();
   const sources = [
-    ["certificate-san", report.tls.subjectAltNames ?? []],
+    ["certificate-san", flattenTlsSubjectAltNames(report.tls)],
     ["observed-host", report.footprint.webStackHosts ?? []],
     ["mail-exchanger", report.footprint.mail ?? []],
     ["nameserver", report.footprint.nameservers ?? []]
