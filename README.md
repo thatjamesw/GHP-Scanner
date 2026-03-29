@@ -1,24 +1,25 @@
 # Scanner MVP
 
-Passive-first technical reconnaissance for domain posture, hosting-layer evidence, and ownership metadata.
+Passive-first technical reconnaissance for domain posture, hosting-layer evidence, IP ownership clues, and ownership metadata.
 
 ## What this project does
 
 - Accepts a single apex domain such as `your-domain.com`
-- Collects low-noise DNS, WHOIS, TLS, HTTP, and hosting-layer metadata
+- Collects low-noise DNS, WHOIS, TLS, HTTP, hosting-layer metadata, IP ownership clues, normalized provider hints, and lightweight technology fingerprints
 - Flags missing security headers and lightweight configuration issues
 - Surfaces web stack clues such as `Server`, CDN/WAF hints, cache headers, TLS SANs, nameservers, and mail infrastructure
-- Produces a technical report organized into `page`, `headers`, `webstack`, `hosting`, `javascript`, `network`, `tls`, and `ownership` sections
+- Produces a technical report organized into `website`, `infrastructure`, `delivery`, `page`, `headers`, `webstack`, `hosting`, `javascript`, `network`, `ip`, `tls`, and `ownership` sections
 - Produces a single JSON report that can be opened in a static GitHub Pages UI
 
 ## Why the architecture looks like this
 
-A pure GitHub Pages frontend cannot directly perform:
+A browser module can power the report viewer, but it cannot replace the collector for the full scan. A pure browser or GitHub Pages frontend cannot directly perform:
 
 - WHOIS queries
 - raw DNS lookups
 - TLS socket inspection
 - reliable cross-origin HTTP analysis against arbitrary sites
+- IP WHOIS / PTR enrichment with consistent operator control
 
 Because of that, this MVP splits into:
 
@@ -118,8 +119,12 @@ The MVP currently checks:
 - lack of HTTPS redirect
 - TLS handshake failures
 - hosting-layer hints from `Server`, `Via`, `X-Cache`, `CF-*`, and related headers
+- normalized cloud and delivery-provider hints such as AWS, Azure, GCP, Cloudflare, Fastly, Akamai, and CloudFront
+- IP ownership hints such as ASN, PTR, netblock, country, and estimated region/city when present in WHOIS data
 - ownership fingerprinting from WHOIS registrar and registrant fields
 - JavaScript/runtime clues from script paths and common framework markers such as `Next.js`, `Nuxt`, and `webpack`
+- broader technology hints such as WordPress, Drupal, Shopify, React, Vue, Angular, SvelteKit, Segment, HubSpot, Datadog, Sentry, and Stripe when observable from the page
+- confidence and evidence objects for inferred technologies, cloud providers, delivery providers, and IP role classification
 - exposure clues from banner disclosure such as `Server` and `X-Powered-By`
 
 ## Limits and next steps
@@ -135,10 +140,13 @@ Without third-party data sources, related-domain discovery is necessarily conser
 
 `CVE correlation` is also marked as coming soon. The scanner now surfaces software and runtime banner evidence, but reliable CVE matching needs a maintained version-to-advisory knowledge base.
 
+The current expansion path for OSINT is to borrow the categories of evidence that browser sandboxes expose, not to embed third-party result schemas directly into our own report model. A useful reference is the [urlscan quickstart](https://docs.urlscan.io/guides/quickstart): browser execution produces contacted domains and IPs, requested resources, DOM and screenshot artifacts, cookies, and brand-targeting signals. Those are good design inputs for our own enrichment roadmap even when collection stays first-party.
+
 Good next steps for the next iteration:
 
 1. Add redirect-chain and response-header capture beyond the final apex fetch.
-2. Support optional authenticated scans with stronger ownership checks.
+2. Deepen the IP layer with ASN clustering, PTR confidence, netblock grouping, and provider normalization.
 3. Add robots, sitemap, and security.txt discovery.
 4. Add optional reverse-WHOIS enrichment once we decide on a local index or external source.
-5. Add confidence and evidence objects for each finding.
+5. Add a browser-assisted collector mode backed by our own service if we want rendered page telemetry without exposing secrets or losing low-level access.
+6. Add confidence and evidence objects for each finding.

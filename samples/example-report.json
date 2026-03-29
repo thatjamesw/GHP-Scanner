@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2026-03-28T13:44:17.819Z",
   "target": "sodexo.com",
   "summary": {
@@ -10,7 +10,9 @@
     "findingCount": 5,
     "ips": 1,
     "webStackHosts": 20,
-    "relatedDomains": 0
+    "relatedDomains": 0,
+    "technologies": 5,
+    "countries": 1
   },
   "findings": [
     {
@@ -405,14 +407,229 @@
   },
   "hosting": {
     "providerHint": "Vercel",
+    "providerInference": {
+      "label": "Vercel",
+      "confidence": 0.93,
+      "evidence": [
+        {
+          "source": "header:x-vercel-id",
+          "detail": "observed \"arn1::iad1::xplw4-1774705458058-95d27fad7117\""
+        },
+        {
+          "source": "header:x-vercel-cache",
+          "detail": "observed \"HIT\""
+        }
+      ]
+    },
+    "deliveryNetwork": null,
+    "deliveryInference": null,
     "deliveryHints": [],
     "effectiveHostname": "www.sodexo.com",
+    "serverStack": [
+      "Vercel",
+      "Next.js"
+    ],
+    "serverStackInferences": [
+      {
+        "label": "Vercel",
+        "confidence": 0.88,
+        "evidence": [
+          {
+            "source": "header:server",
+            "detail": "observed value \"Vercel\""
+          }
+        ]
+      },
+      {
+        "label": "Next.js",
+        "confidence": 0.82,
+        "evidence": [
+          {
+            "source": "header:x-powered-by",
+            "detail": "observed value \"Next.js\""
+          }
+        ]
+      }
+    ],
     "edgeHeaders": [
       {
         "key": "server",
         "value": "Vercel"
       }
     ]
+  },
+  "website": {
+    "url": "https://www.sodexo.com/",
+    "title": "Sodexo Group – Food Services &amp; Facilities Management",
+    "status": 200,
+    "technologies": [
+      "next.js",
+      "webpack",
+      "google-tag-manager",
+      "Vercel",
+      "Next.js"
+    ],
+    "technologyInferences": [
+      {
+        "label": "next.js",
+        "confidence": 0.9,
+        "evidence": [
+          {
+            "source": "html",
+            "detail": "matched \"/_next/\" in page content"
+          }
+        ]
+      },
+      {
+        "label": "webpack",
+        "confidence": 0.72,
+        "evidence": [
+          {
+            "source": "html",
+            "detail": "matched \"webpack\" in page content"
+          }
+        ]
+      },
+      {
+        "label": "google-tag-manager",
+        "confidence": 0.72,
+        "evidence": [
+          {
+            "source": "html",
+            "detail": "matched \"googletagmanager\" in page content"
+          }
+        ]
+      },
+      {
+        "label": "Vercel",
+        "confidence": 0.88,
+        "evidence": [
+          {
+            "source": "header:server",
+            "detail": "observed value \"Vercel\""
+          }
+        ]
+      },
+      {
+        "label": "Next.js",
+        "confidence": 0.82,
+        "evidence": [
+          {
+            "source": "header:x-powered-by",
+            "detail": "observed value \"Next.js\""
+          }
+        ]
+      }
+    ],
+    "thirdPartyHosts": [
+      "edge.sitecorecloud.io",
+      "www.w3.org",
+      "sodexo.co.il"
+    ],
+    "redirectChain": [
+      {
+        "url": "https://sodexo.com",
+        "status": 308,
+        "location": "https://www.sodexo.com/"
+      },
+      {
+        "url": "https://www.sodexo.com/",
+        "status": 200,
+        "location": null
+      }
+    ]
+  },
+  "infrastructure": {
+    "ips": [
+      "64.239.109.1"
+    ],
+    "asns": [
+      "AS16509"
+    ],
+    "providers": [
+      "Amazon Web Services"
+    ],
+    "cloudProvider": "Amazon Web Services",
+    "providerInferences": [
+      {
+        "label": "Amazon Web Services",
+        "confidence": 0.78,
+        "evidence": [
+          {
+            "source": "ip-whois",
+            "detail": "matched \"amazon\" in IP ownership or PTR data"
+          }
+        ]
+      }
+    ],
+    "cloudProviderInference": {
+      "label": "Amazon Web Services",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "source": "ip-whois",
+          "detail": "matched \"amazon\" in IP ownership or PTR data"
+        }
+      ]
+    },
+    "countries": [
+      "US"
+    ],
+    "regions": [],
+    "cities": [],
+    "entries": [
+      {
+        "ip": "64.239.109.1",
+        "ptr": "64.239.109.1",
+        "location": {
+          "country": "US",
+          "region": null,
+          "city": null,
+          "precision": "country"
+        },
+        "provider": "Amazon Web Services",
+        "providerInference": {
+          "label": "Amazon Web Services",
+          "confidence": 0.78,
+          "evidence": [
+            {
+              "source": "ip-whois",
+              "detail": "matched \"amazon\" in IP ownership or PTR data"
+            }
+          ]
+        },
+        "roleHint": "origin-likely",
+        "roleInference": {
+          "label": "origin-likely",
+          "confidence": 0.42,
+          "evidence": [
+            {
+              "source": "heuristic",
+              "detail": "defaulted because no edge or mail indicators matched"
+            }
+          ]
+        },
+        "asn": "AS16509",
+        "asnName": "AMAZON-02",
+        "netName": "AMAZON-DFW",
+        "cidr": "64.239.64.0/18",
+        "country": "US",
+        "registry": "ARIN",
+        "organization": "Amazon.com, Inc."
+      }
+    ]
+  },
+  "delivery": {
+    "edgeProvider": null,
+    "edgeProviderInference": null,
+    "effectiveHostname": "www.sodexo.com",
+    "cacheLayer": null,
+    "reverseProxy": null,
+    "serverStack": [
+      "Vercel",
+      "Next.js"
+    ],
+    "indicators": []
   },
   "exposures": {
     "bannerDisclosures": [
@@ -445,6 +662,52 @@
       "rationale": "Reverse WHOIS expansion requires a comparison corpus or external index. The local scanner currently fingerprints ownership data only.",
       "candidates": []
     }
+  },
+  "ip": {
+    "availability": {
+      "ipWhois": true
+    },
+    "entries": [
+      {
+        "ip": "64.239.109.1",
+        "ptr": "64.239.109.1",
+        "location": {
+          "country": "US",
+          "region": null,
+          "city": null,
+          "precision": "country"
+        },
+        "provider": "Amazon Web Services",
+        "providerInference": {
+          "label": "Amazon Web Services",
+          "confidence": 0.78,
+          "evidence": [
+            {
+              "source": "ip-whois",
+              "detail": "matched \"amazon\" in IP ownership or PTR data"
+            }
+          ]
+        },
+        "roleHint": "origin-likely",
+        "roleInference": {
+          "label": "origin-likely",
+          "confidence": 0.42,
+          "evidence": [
+            {
+              "source": "heuristic",
+              "detail": "defaulted because no edge or mail indicators matched"
+            }
+          ]
+        },
+        "asn": "AS16509",
+        "asnName": "AMAZON-02",
+        "netName": "AMAZON-DFW",
+        "cidr": "64.239.64.0/18",
+        "country": "US",
+        "registry": "ARIN",
+        "organization": "Amazon.com, Inc."
+      }
+    ]
   },
   "footprint": {
     "ips": [

@@ -31,81 +31,89 @@
       </section>
 
       <section id="reportView" class="report hidden">
-        <section class="console-head">
-          <div class="summary-line">
-            <span class="summary-key">Target</span>
-            <span id="targetValue" class="summary-value">-</span>
+        <section class="target-bar">
+          <div class="target-identity">
+            <div class="summary-key">Target</div>
+            <div id="targetValue" class="target-value">-</div>
+            <div id="targetMeta" class="target-meta">No report loaded.</div>
           </div>
-          <div class="summary-line">
-            <span class="summary-key">Assessment</span>
-            <span id="scoreValue" class="summary-value">-</span>
+          <div class="score-panel">
+            <div class="summary-key">Assessment</div>
+            <div id="scoreValue" class="score-value">-</div>
           </div>
-          <div class="summary-line">
+        </section>
+
+        <section class="signal-strip">
+          <div class="signal-cell">
             <span class="summary-key">Findings</span>
             <span id="findingValue" class="summary-value">-</span>
           </div>
-          <div class="summary-line">
+          <div class="signal-cell">
+            <span class="summary-key">Primary IPs</span>
+            <span id="ipCountValue" class="summary-value">-</span>
+          </div>
+          <div class="signal-cell">
+            <span class="summary-key">Technologies</span>
+            <span id="hostCountValue" class="summary-value">-</span>
+          </div>
+          <div class="signal-cell">
             <span class="summary-key">WHOIS-linked</span>
             <span id="relatedDomainValue" class="summary-value">-</span>
           </div>
         </section>
 
-        <div class="report-grid">
-          <section class="module module-wide">
-            <h2>Assessment Findings</h2>
-            <div id="findingsList" class="stack"></div>
-          </section>
+        <section class="results-layout">
+          <div class="results-main">
+            <section class="panel panel-findings">
+              <div class="panel-head">
+                <h2>Findings</h2>
+                <div class="panel-subtitle">Prioritized issues surfaced by the current collection pass.</div>
+              </div>
+              <div id="findingsList" class="finding-list"></div>
+            </section>
 
-          <section class="module">
-            <h2>Primary Page</h2>
-            <div id="pageList" class="rows"></div>
-          </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Web Overview</h2>
+                <div class="panel-subtitle">Destination, redirect behavior, runtime clues, and delivery stack.</div>
+              </div>
+              <div id="pageList" class="rows"></div>
+              <div id="webStackList" class="rows rows-subsection"></div>
+              <div id="hostingList" class="rows rows-subsection"></div>
+              <div id="javascriptList" class="rows rows-subsection"></div>
+            </section>
 
-          <section class="module">
-            <h2>HTTP Security Headers</h2>
-            <div id="headerList" class="stack"></div>
-          </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Network Footprint</h2>
+                <div class="panel-subtitle">DNS, mail infrastructure, IP ownership, and TLS evidence.</div>
+              </div>
+              <div id="networkList" class="rows"></div>
+              <div id="ipList" class="rows rows-subsection"></div>
+              <div id="tlsList" class="rows rows-subsection"></div>
+            </section>
+          </div>
 
-          <section class="module">
-            <h2>Web Stack</h2>
-            <div id="webStackList" class="rows"></div>
-          </section>
+          <aside class="results-side">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Security Signals</h2>
+                <div class="panel-subtitle">Header-level posture and exposed technologies.</div>
+              </div>
+              <div id="headerList" class="stack"></div>
+              <div id="exposureList" class="rows rows-subsection"></div>
+            </section>
 
-          <section class="module">
-            <h2>Hosting</h2>
-            <div id="hostingList" class="rows"></div>
-          </section>
-
-          <section class="module">
-            <h2>JavaScript / Runtime</h2>
-            <div id="javascriptList" class="rows"></div>
-          </section>
-
-          <section class="module">
-            <h2>Network and Mail</h2>
-            <div id="networkList" class="rows"></div>
-          </section>
-
-          <section class="module">
-            <h2>TLS and Certificate</h2>
-            <div id="tlsList" class="rows"></div>
-          </section>
-
-          <section class="module">
-            <h2>Ownership</h2>
-            <div id="ownershipList" class="rows"></div>
-          </section>
-
-          <section class="module">
-            <h2>Exposure Clues</h2>
-            <div id="exposureList" class="rows"></div>
-          </section>
-
-          <section class="module module-wide">
-            <h2>WHOIS-linked Domains</h2>
-            <div id="whoisLinkedList" class="stack"></div>
-          </section>
-        </div>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Ownership</h2>
+                <div class="panel-subtitle">Registrar, registrant, and relatedness fingerprints.</div>
+              </div>
+              <div id="ownershipList" class="rows"></div>
+              <div id="whoisLinkedList" class="stack stack-subsection"></div>
+            </section>
+          </aside>
+        </section>
       </section>
     </main>
 
