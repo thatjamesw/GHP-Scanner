@@ -1,5 +1,6 @@
 const reportFile = document.querySelector("#reportFile");
 const loadSample = document.querySelector("#loadSample");
+const loadLatestReport = document.querySelector("#loadLatestReport");
 
 reportFile.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
@@ -8,21 +9,34 @@ reportFile.addEventListener("change", async (event) => {
   }
 
   const content = await file.text();
-  renderReport(JSON.parse(content));
+  renderReport(JSON.parse(content), {
+    sourceLabel: `Loaded from file: ${file.name}`
+  });
 });
 
 loadSample.addEventListener("click", async () => {
   const response = await fetch("./samples/example-report.json");
   const data = await response.json();
-  renderReport(data);
+  renderReport(data, {
+    sourceLabel: "Loaded bundled sample: samples/example-report.json"
+  });
 });
 
-function renderReport(report) {
+loadLatestReport.addEventListener("click", async () => {
+  const response = await fetch("./reports/sodexo.com.json", { cache: "no-store" });
+  const data = await response.json();
+  renderReport(data, {
+    sourceLabel: "Loaded generated report: reports/sodexo.com.json"
+  });
+});
+
+function renderReport(report, context = {}) {
   document.querySelector("#emptyState").classList.add("hidden");
   document.querySelector("#reportView").classList.remove("hidden");
 
   text("#targetValue", report.target);
   text("#targetMeta", buildTargetMeta(report));
+  text("#reportSource", buildReportSource(report, context));
   paintAssessment(report.summary);
   text("#findingValue", `${report.summary.findingCount} findings / score ${report.summary.score}`);
   text("#ipCountValue", String(report.summary?.ips ?? report.footprint?.ips?.length ?? 0));
@@ -274,6 +288,12 @@ function buildTargetMeta(report) {
   const cloud = report.infrastructure?.cloudProviderInference?.label ?? report.infrastructure?.cloudProvider ?? "Cloud unknown";
   const geo = listOrFallback(report.infrastructure?.countries ?? []);
   return `${status} | edge ${delivery} | cloud ${cloud} | geo ${geo}`;
+}
+
+function buildReportSource(report, context) {
+  const generatedAt = report.generatedAt ? `generated ${report.generatedAt}` : "generated time unavailable";
+  const source = context?.sourceLabel ?? "Loaded report source unavailable";
+  return `${source} | ${generatedAt}`;
 }
 
 function rowTemplate(label, value) {
