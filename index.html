@@ -22,8 +22,7 @@
             <span>Open report JSON</span>
             <input id="reportFile" type="file" accept="application/json">
           </label>
-          <button id="loadSample" type="button">Load `sodexo.com` sample</button>
-          <button id="loadLatestReport" type="button">Load latest `reports/sodexo.com.json`</button>
+          <button id="loadSample" type="button">Load `tori.fi` sample</button>
         </div>
       </header>
 
@@ -55,7 +54,7 @@
             <span id="ipCountValue" class="summary-value">-</span>
           </div>
           <div class="signal-cell">
-            <span class="summary-key">Technologies</span>
+            <span id="hostCountLabel" class="summary-key">Technologies</span>
             <span id="hostCountValue" class="summary-value">-</span>
           </div>
           <div class="signal-cell">
@@ -72,6 +71,14 @@
                 <div class="panel-subtitle">Grouped by investigation area so email, transport, infrastructure, and exposure issues are easier to triage.</div>
               </div>
               <div id="findingsList" class="finding-list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Related Services</h2>
+                <div class="panel-subtitle">A cross-layer map of web dependencies, email vendors, verification services, social properties, and infrastructure relationships.</div>
+              </div>
+              <div id="serviceMap" class="service-map"></div>
             </section>
 
             <section class="panel">
@@ -102,6 +109,7 @@
               <div id="networkList" class="rows"></div>
               <div id="txtList" class="rows rows-subsection"></div>
               <div id="ipList" class="rows rows-subsection"></div>
+              <div id="serviceList" class="rows rows-subsection"></div>
               <div id="tlsList" class="rows rows-subsection"></div>
             </section>
 
@@ -141,6 +149,7 @@
                 <h2>Security Signals</h2>
                 <div class="panel-subtitle">Header-level posture and exposed technologies.</div>
               </div>
+              <div id="scoreList" class="rows"></div>
               <div id="headerList" class="stack"></div>
               <div id="exposureList" class="rows rows-subsection"></div>
             </section>

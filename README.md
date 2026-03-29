@@ -83,7 +83,7 @@ http://localhost:4173
 
 Load the report JSON from `reports/`.
 
-The bundled sample report in [example-report.json](/Users/jameswright/dev/_mvp/scanner/samples/example-report.json) is generated from `sodexo.com`.
+The bundled sample report in [example-report.json](/Users/jameswright/dev/_mvp/scanner/samples/example-report.json) is generated from `tori.fi`.
 
 ## Deploying to GitHub Pages
 

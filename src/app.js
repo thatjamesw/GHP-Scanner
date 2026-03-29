@@ -1,6 +1,5 @@
 const reportFile = document.querySelector("#reportFile");
 const loadSample = document.querySelector("#loadSample");
-const loadLatestReport = document.querySelector("#loadLatestReport");
 
 reportFile.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
@@ -18,15 +17,7 @@ loadSample.addEventListener("click", async () => {
   const response = await fetch("./samples/example-report.json");
   const data = await response.json();
   renderReport(data, {
-    sourceLabel: "Loaded bundled sample: samples/example-report.json"
-  });
-});
-
-loadLatestReport.addEventListener("click", async () => {
-  const response = await fetch("./reports/sodexo.com.json", { cache: "no-store" });
-  const data = await response.json();
-  renderReport(data, {
-    sourceLabel: "Loaded generated report: reports/sodexo.com.json"
+    sourceLabel: "Loaded bundled sample: tori.fi"
   });
 });
 
@@ -40,7 +31,13 @@ function renderReport(report, context = {}) {
   paintAssessment(report.summary);
   text("#findingValue", `${report.summary.findingCount} findings / score ${report.summary.score}`);
   text("#ipCountValue", String(report.summary?.ips ?? report.footprint?.ips?.length ?? 0));
-  text("#hostCountValue", String(report.summary?.technologies ?? report.website?.technologies?.length ?? 0));
+  text("#hostCountLabel", report.services?.active ? "Open Services" : "Technologies");
+  text(
+    "#hostCountValue",
+    String(report.services?.active
+      ? (report.summary?.openServices ?? 0)
+      : (report.summary?.technologies ?? report.website?.technologies?.length ?? 0))
+  );
   text(
     "#relatedDomainValue",
     report.relationships?.whoisLinkedDomains?.status === "coming-soon"
@@ -49,6 +46,16 @@ function renderReport(report, context = {}) {
   );
 
   renderFindingBuckets("#findingsList", report.findings);
+  renderServiceMap("#serviceMap", report);
+
+  renderRows("#scoreList", [
+    row("Overall score", report.scoring?.overall ?? report.summary?.score),
+    row("Web Security", formatScoreBucket(report.scoring?.buckets, "Web Security")),
+    row("Email Security", formatScoreBucket(report.scoring?.buckets, "Email Security")),
+    row("Infrastructure", formatScoreBucket(report.scoring?.buckets, "Infrastructure")),
+    row("Exposure", formatScoreBucket(report.scoring?.buckets, "Exposure")),
+    row("Network Services", formatScoreBucket(report.scoring?.buckets, "Network Services"))
+  ]);
 
   renderRows("#pageList", [
     row("Apex domain", report.page?.apexDomain),
@@ -158,6 +165,16 @@ function renderReport(report, context = {}) {
     row("Country", listOrFallback(compactValues((report.ip?.entries ?? []).map((entry) => entry.location?.country || entry.country)))),
     row("Region", listOrFallback(compactValues((report.ip?.entries ?? []).map((entry) => entry.location?.region)))),
     row("City", listOrFallback(compactValues((report.ip?.entries ?? []).map((entry) => entry.location?.city))))
+  ]);
+
+  renderRows("#serviceList", [
+    row("Active probe mode", report.services?.active ? "Enabled" : "Disabled"),
+    row("Ports checked", listOrFallback(report.services?.portsChecked)),
+    row("Hosts scanned", report.services?.summary?.hostsScanned ?? 0),
+    row("Open services", formatOpenServices(report.services?.entries)),
+    row("Service families", listOrFallback(report.services?.summary?.families)),
+    row("Fingerprinted services", report.services?.summary?.fingerprintedOpen ?? 0),
+    htmlRow("Observed service detail", formatOpenServicesHtml(report.services?.entries))
   ]);
 
   renderRows("#tlsList", [
@@ -280,6 +297,52 @@ function renderRawEvidence(report) {
   text("#rawIp", prettyJson(report.ip?.entries ?? []));
   text("#rawHttp", prettyJson(report.raw?.http));
   text("#rawTls", prettyJson(report.raw?.tls ?? report.tls?.entries ?? []));
+}
+
+function renderServiceMap(selector, report) {
+  const element = document.querySelector(selector);
+  const groups = buildRelatedServiceGroups(report);
+  if (!groups.length) {
+    element.innerHTML = renderEntry({ title: "No related services", body: "No related services could be derived from the current report." });
+    return;
+  }
+
+  const target = report.target ?? "target";
+  element.innerHTML = `
+    <section class="service-topology">
+      <div class="service-ring service-ring-outer"></div>
+      <div class="service-ring service-ring-inner"></div>
+      <section class="service-core">
+        <div class="service-core-label">Target</div>
+        <div class="service-core-value">${escapeHtml(target)}</div>
+        <div class="service-core-meta">${escapeHtml(report.page?.effectiveUrl ?? "No effective URL observed")}</div>
+        <div class="service-core-stats">
+          <span>${groups.length} layers</span>
+          <span>${groups.reduce((total, group) => total + group.services.length, 0)} services</span>
+          <span>${report.graph?.summary?.nodeCount ?? 0} nodes</span>
+          <span>${report.graph?.summary?.edgeCount ?? 0} edges</span>
+        </div>
+      </section>
+    </section>
+    <section class="service-groups">
+      ${groups.map((group) => `
+        <article class="service-group-card">
+          <div class="service-group-head">
+            <span class="service-group-title">${escapeHtml(group.title)}</span>
+            <span class="service-group-count">${group.services.length}</span>
+          </div>
+          <div class="service-chip-list">
+            ${group.services.map((service) => `
+              <div class="service-chip">
+                <div class="service-chip-label">${escapeHtml(service.label)}</div>
+                <div class="service-chip-evidence">${escapeHtml(service.evidence)}</div>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+      `).join("")}
+    </section>
+  `;
 }
 
 function buildTargetMeta(report) {
@@ -527,6 +590,234 @@ function formatTxtBuckets(entries) {
     .join(" | ");
 }
 
+function formatOpenServices(entries) {
+  const open = (entries ?? []).filter((entry) => entry.state === "open");
+  if (!open.length) {
+    return "None detected";
+  }
+
+  return open
+    .map((entry) => {
+      const fingerprint = entry.fingerprint?.product ?? entry.fingerprint?.observation ?? cleanBanner(entry.banner);
+      return `${entry.ip}:${entry.port} ${entry.service}${fingerprint ? ` (${fingerprint})` : ""}`;
+    })
+    .join(" | ");
+}
+
+function formatOpenServicesHtml(entries) {
+  const open = (entries ?? []).filter((entry) => entry.state === "open");
+  if (!open.length) {
+    return '<span class="muted-inline">No open services observed during active probing.</span>';
+  }
+
+  return `
+    <div class="service-observation-list">
+      ${open.map((entry) => {
+        const meta = [
+          `${entry.ip}:${entry.port}`,
+          entry.family ? `family: ${entry.family}` : null,
+          entry.fingerprint?.protocol ? `protocol: ${entry.fingerprint.protocol}` : null
+        ].filter(Boolean).join(" | ");
+        const product = entry.fingerprint?.product ?? entry.service.toUpperCase();
+        const details = [
+          entry.fingerprint?.statusCode ? `HTTP ${entry.fingerprint.statusCode}` : null,
+          entry.fingerprint?.serverHeader ? `server ${entry.fingerprint.serverHeader}` : null,
+          entry.fingerprint?.tls?.subjectCN ? `cert ${entry.fingerprint.tls.subjectCN}` : null,
+          entry.fingerprint?.observation ? entry.fingerprint.observation : cleanBanner(entry.banner)
+        ].filter(Boolean);
+
+        return `
+          <article class="service-observation">
+            <div class="service-observation-head">
+              <span class="service-observation-title">${escapeHtml(product)}</span>
+              <span class="service-observation-state state-${escapeHtml(entry.severity ?? "low")}">${escapeHtml(entry.service)}</span>
+            </div>
+            <div class="service-observation-meta">${escapeHtml(meta)}</div>
+            <div class="service-observation-details">
+              ${details.map((detail) => `<span class="service-detail-chip">${escapeHtml(detail)}</span>`).join("")}
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function formatScoreBucket(buckets, label) {
+  const bucket = (buckets ?? []).find((entry) => entry.label === label);
+  if (!bucket) {
+    return "Unavailable";
+  }
+
+  const positive = bucket.positives?.length ? ` + ${bucket.positives.join(", ")}` : "";
+  const negative = bucket.negatives?.length ? ` | ${bucket.negatives.length} issues` : "";
+  return `${bucket.score}${negative}${positive}`;
+}
+
+function cleanBanner(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  return String(value).replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function buildRelatedServiceGroups(report) {
+  const groups = new Map();
+  const add = (group, label, evidence) => {
+    if (!label) {
+      return;
+    }
+    const items = groups.get(group) ?? new Map();
+    const key = label.toLowerCase();
+    const existing = items.get(key);
+    if (existing) {
+      if (!existing.evidence.includes(evidence)) {
+        existing.evidence = `${existing.evidence}; ${evidence}`;
+      }
+    } else {
+      items.set(key, { label, evidence });
+    }
+    groups.set(group, items);
+  };
+
+  for (const host of report.javascript?.thirdPartyHosts ?? []) {
+    const service = classifyHostService(host);
+    add(service.group, service.label, `web host: ${host}`);
+  }
+
+  for (const entry of report.email?.providerInferences ?? []) {
+    add("Email & Messaging", entry.label, summarizeEvidence(entry.evidence));
+  }
+  for (const entry of report.email?.mxProviderInferences ?? []) {
+    add("Email & Messaging", entry.label, summarizeEvidence(entry.evidence));
+  }
+  for (const host of extractSpfIncludeHosts(report.email?.spf?.record)) {
+    const service = classifyHostService(host, "Email & Messaging");
+    add(service.group, service.label, `spf include: ${host}`);
+  }
+  for (const domain of extractMailtoDomains(report.email?.dmarc?.record)) {
+    const service = classifyHostService(domain, "Email & Messaging");
+    add(service.group, service.label, `dmarc reporting: ${domain}`);
+  }
+
+  for (const vendor of report.discovery?.txtObservations?.vendorHints ?? []) {
+    add(classifyTxtVendorGroup(vendor), vendor, "TXT verification");
+  }
+
+  for (const entry of report.dns.nsProviderHints ?? []) {
+    add("DNS & Infrastructure", entry, "nameserver inference");
+  }
+  for (const entry of report.infrastructure?.providerInferences ?? []) {
+    add("DNS & Infrastructure", entry.label, summarizeEvidence(entry.evidence));
+  }
+  for (const cluster of report.relationships?.observedInfrastructure?.clusters ?? []) {
+    add("Observed Relationships", cluster.domain, `${cluster.sources.join(", ")} | ${cluster.samples.join(", ")}`);
+  }
+
+  for (const entry of (report.services?.entries ?? []).filter((item) => item.state === "open")) {
+    const label = entry.fingerprint?.product ?? entry.service.toUpperCase();
+    const details = [
+      `${entry.ip}:${entry.port}`,
+      entry.family ? `family: ${entry.family}` : null,
+      entry.fingerprint?.statusCode ? `HTTP ${entry.fingerprint.statusCode}` : null,
+      entry.fingerprint?.observation ? entry.fingerprint.observation : cleanBanner(entry.banner)
+    ].filter(Boolean).join(" | ");
+    add("Active Services", label, details);
+  }
+
+  return [...groups.entries()]
+    .map(([title, services]) => ({
+      title,
+      services: [...services.values()].sort((a, b) => a.label.localeCompare(b.label))
+    }))
+    .filter((group) => group.services.length)
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+function classifyHostService(host, fallbackGroup = "Web & Third Parties") {
+  const lower = String(host).toLowerCase();
+  const rules = [
+    ["googletagmanager.com", "Google Tag Manager", "Analytics & Ads"],
+    ["doubleclick.net", "Google Ads", "Analytics & Ads"],
+    ["google-analytics.com", "Google Analytics", "Analytics & Ads"],
+    ["facebook.com", "Facebook", "Social & Community"],
+    ["instagram.com", "Instagram", "Social & Community"],
+    ["youtube.com", "YouTube", "Social & Community"],
+    ["hotjar.com", "Hotjar", "Analytics & Ads"],
+    ["zendesk.com", "Zendesk", "Email & Messaging"],
+    ["ondmarc.com", "OnDMARC", "Email & Messaging"],
+    ["relevant-digital.com", "Relevant Digital", "Advertising & Monetization"],
+    ["vend.fi", "Vend", "Privacy & Consent"],
+    ["finn.no", "FINN", "Marketplace Network"],
+    ["finncdn.no", "FINN CDN", "Marketplace Network"],
+    ["oikotie.fi", "Oikotie", "Marketplace Network"],
+    ["autovex.fi", "Autovex", "Marketplace Network"],
+    ["hintaopas.fi", "Hintaopas", "Marketplace Network"],
+    ["w3.org", "W3C", "Standards & References"]
+  ];
+
+  for (const [pattern, label, group] of rules) {
+    if (lower.includes(pattern)) {
+      return { label, group };
+    }
+  }
+
+  return {
+    label: registrableLabel(host),
+    group: fallbackGroup
+  };
+}
+
+function classifyTxtVendorGroup(vendor) {
+  const groups = {
+    "Google Search Console": "Identity & Verification",
+    "Google Workspace Recovery": "Identity & Verification",
+    "Atlassian": "Collaboration & SaaS",
+    "Adobe": "Marketing & Experience",
+    "Pardot": "Marketing & CRM",
+    "Notion": "Collaboration & SaaS",
+    "Sitecore": "Web & CMS",
+    "PlayPlay": "Marketing & Experience",
+    "TeamViewer": "Enterprise IT",
+    "OpenAI": "AI & Automation",
+    "Autodesk": "Enterprise IT",
+    "Access": "Identity & Verification",
+    "Microsoft": "Enterprise IT",
+    "GlobalSign": "Trust & PKI",
+    "DocuSign": "Trust & PKI"
+  };
+  return groups[vendor] ?? "TXT Services";
+}
+
+function extractSpfIncludeHosts(record) {
+  if (!record) {
+    return [];
+  }
+  return [...new Set([...record.matchAll(/\binclude:([a-z0-9._-]+\.[a-z]{2,})/gi)].map((match) => match[1].toLowerCase()))];
+}
+
+function extractMailtoDomains(record) {
+  if (!record) {
+    return [];
+  }
+  return [...new Set([...record.matchAll(/mailto:[^@<\s]+@([a-z0-9._-]+\.[a-z]{2,})/gi)].map((match) => match[1].toLowerCase()))];
+}
+
+function summarizeEvidence(evidence) {
+  if (!evidence?.length) {
+    return "derived from report evidence";
+  }
+  return evidence.slice(0, 2).map((item) => `${item.source}: ${item.detail}`).join(" | ");
+}
+
+function registrableLabel(host) {
+  const parts = String(host).split(".").filter(Boolean);
+  if (parts.length <= 2) {
+    return host;
+  }
+  return parts.slice(-2).join(".");
+}
+
 function findingBucket(finding) {
   const category = finding.category ?? "";
   if (["email-security"].includes(category)) {
@@ -535,7 +826,7 @@ function findingBucket(finding) {
   if (["transport-security", "tls", "csp", "security-header", "cors", "cookie-posture", "security-contact"].includes(category)) {
     return "Web Security";
   }
-  if (["certificate-governance", "infrastructure-spread", "delivery-topology", "shared-infrastructure"].includes(category)) {
+  if (["certificate-governance", "infrastructure-spread", "delivery-topology", "shared-infrastructure", "network-service"].includes(category)) {
     return "Infrastructure";
   }
   if (["technology-disclosure", "banner-disclosure"].includes(category)) {
